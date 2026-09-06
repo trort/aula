@@ -14,38 +14,52 @@ function pickDecoys(entry: CuratedChar, count: number): string[] {
   return shuffle(entry.decoys).slice(0, count);
 }
 
+/**
+ * 生成一轮题目：
+ * - 到期/刚错过的字优先（各自内部随机）；
+ * - 其余字随机补足；
+ * - 字与字之间的顺序每次随机，相邻题不重复同一个字；
+ * - 每题干扰项与选项位置也随机。
+ */
 export function buildQuestions(
   entries: CuratedChar[],
   size: number,
   priority: Set<string>
 ): Question[] {
   const pool = entries.filter((e) => e.decoys.length >= 2);
-  const sorted = [
-    ...pool.filter((e) => priority.has(e.ch)),
-    ...pool.filter((e) => !priority.has(e.ch)),
+  if (pool.length === 0) return [];
+
+  const preferred = [
+    ...shuffle(pool.filter((e) => priority.has(e.ch))),
+    ...shuffle(pool.filter((e) => !priority.has(e.ch))),
   ];
-  const questions: Question[] = [];
-  let prevTarget = "";
-  let prevTargetPos = -1;
 
-  // 需要时循环多轮，直到攒够题目；全部用完也允许重复（题量很小）
+  const order: CuratedChar[] = [];
+  let cursor = 0;
   let guard = 0;
-  while (questions.length < size && guard < size * pool.length * 2 + 200) {
+  while (order.length < size && guard < size * pool.length * 3 + 500) {
     guard += 1;
-    const source = sorted.length > 0 ? sorted[questions.length % sorted.length] : pool[questions.length % pool.length];
-    if (!source) break;
-    if (source.ch === prevTarget && pool.length > 1) continue;
+    const candidate = preferred[cursor % preferred.length];
+    cursor += 1;
+    if (order.length > 0 && order[order.length - 1] === candidate) continue;
+    order.push(candidate);
+    // 一整轮用完后重新洗牌，避免循环顺序可预测
+    if (cursor % preferred.length === 0) {
+      preferred.splice(0, preferred.length, ...shuffle(preferred));
+    }
+  }
 
+  const questions: Question[] = [];
+  let prevTargetPos = -1;
+  for (const source of order.slice(0, size)) {
     const decoys = pickDecoys(source, 2);
     const optionChars = shuffle([source.ch, ...decoys]);
     let targetPos = optionChars.indexOf(source.ch);
-    // 避免目标字连续两次落在同一位置（位置记忆）
     if (targetPos === prevTargetPos && pool.length > 2) {
       const swapped = shuffle(optionChars);
-      const newPos = swapped.indexOf(source.ch);
-      if (newPos !== prevTargetPos) {
+      if (swapped.indexOf(source.ch) !== prevTargetPos) {
         optionChars.splice(0, optionChars.length, ...swapped);
-        targetPos = newPos;
+        targetPos = optionChars.indexOf(source.ch);
       }
     }
     questions.push({
@@ -53,9 +67,8 @@ export function buildQuestions(
       decoys,
       options: optionChars.map((ch) => ({ ch, isTarget: ch === source.ch })),
     });
-    prevTarget = source.ch;
     prevTargetPos = targetPos;
   }
-  return questions.slice(0, size);
+  return questions;
 }
 
