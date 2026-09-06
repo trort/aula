@@ -33,7 +33,8 @@ export const CURATED: CuratedChar[] = [
   { ch: "目", py: "mù", pack: "s3", decoys: ["日", "白", "自", "田"] },
   { ch: "手", py: "shǒu", pack: "s3", decoys: ["毛", "牛", "午", "平"] },
   { ch: "足", py: "zú", pack: "s3", decoys: ["走", "是", "定"] },
-  { ch: "站", py: "zhàn", pack: "s3", decoys: ["点", "战", "占"] },
+  // 站 = 立 + 占；用“少一边的字形”做干扰，而不是同音的 战
+  { ch: "站", py: "zhàn", pack: "s3", decoys: ["占", "点", "立"] },
   { ch: "坐", py: "zuò", pack: "s3", decoys: ["从", "众", "座"] },
 
   // 识字4 日月水火
