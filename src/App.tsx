@@ -85,8 +85,8 @@ export default function App() {
   const totalChars = packs.reduce((sum, p) => sum + p.chars.length, 0);
 
   const startLiteracy = useCallback(() => {
-    const chosen = pickLessonChars(packs, state.chars, 10);
-    const qs = buildQuestions(chosen, 10, new Set());
+    const chosen = pickLessonChars(packs, state.chars, questionCount);
+    const qs = buildQuestions(chosen, questionCount, new Set());
     if (qs.length === 0) {
       alert("暂时没有可练的字，先让孩子复习一下再开始吧。");
       return;
@@ -94,7 +94,7 @@ export default function App() {
     setQuestions(qs);
     setDomain("literacy");
     setScreen("quiz");
-  }, [packs, state.chars]);
+  }, [packs, state.chars, questionCount]);
 
   const startMath = useCallback(() => {
     if (levels.length === 0) {
@@ -264,6 +264,7 @@ export default function App() {
   return (
     <StatsScreen
       state={state}
+      packs={packs}
       onBack={goHome}
       onImport={async (file) => {
         try {
@@ -405,22 +406,20 @@ function HomeScreen(props: {
         {props.levels.length === 0 && isMath && <p className="hint">至少要选一个难度哦。</p>}
       </section>
 
-      {isMath && (
-        <section className="panel">
-          <h2>做几题？</h2>
-          <div className="chips">
-            {COUNT_OPTIONS.map((n) => (
-              <button
-                key={n}
-                className={props.questionCount === n ? "chip active" : "chip"}
-                onClick={() => props.onCountChange(n)}
-              >
-                {n} 题
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="panel">
+        <h2>做几题？</h2>
+        <div className="chips">
+          {COUNT_OPTIONS.map((n) => (
+            <button
+              key={n}
+              className={props.questionCount === n ? "chip active" : "chip"}
+              onClick={() => props.onCountChange(n)}
+            >
+              {n} 题
+            </button>
+          ))}
+        </div>
+      </section>
 
       <button
         className="btn-start"
@@ -660,6 +659,7 @@ function ResultScreen(props: {
 
 function StatsScreen(props: {
   state: AppState;
+  packs: CharPack[];
   onBack: () => void;
   onExport: () => void;
   onImport: (file: File) => void;
@@ -725,6 +725,51 @@ function StatsScreen(props: {
         ) : (
           <p className="hint">答对题目攒星星，完成一轮就能收集第一张贴纸啦！</p>
         )}
+      </section>
+
+      <section className="panel">
+        <h2>识字 · 字表进度</h2>
+        {props.packs.map((pack) => {
+          const done = pack.chars.filter((c) => mastered(props.state.chars[c.ch])).length;
+          const total = pack.chars.length;
+          const pct = total === 0 ? 100 : Math.round((done / total) * 100);
+          const weak = pack.chars.filter((c) => {
+            const stat = props.state.chars[c.ch];
+            return !!stat && !mastered(stat);
+          });
+          return (
+            <div key={pack.id} className="bank-block">
+              <div className="stage-row">
+                <span className="stage-name bank-name">{pack.title}</span>
+                <span className="nums">已掌握 {done}/{total}</span>
+              </div>
+              <div className="meter">
+                <div className="meter-fill" style={{ width: `${pct}%` }} />
+              </div>
+              {weak.length > 0 ? (
+                <div className="bank-weak">
+                  <span className="bank-weak-label">练过还不熟：</span>
+                  {weak.map((c) => (
+                    <button
+                      key={c.ch}
+                      className="weak-char"
+                      onClick={() => speak(c.ch)}
+                      aria-label={`再听一遍 ${c.ch}`}
+                    >
+                      {c.ch}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="bank-weak">
+                  <span className="bank-weak-label">
+                    {done === 0 ? "还没开始练这个字表" : "练过的都掌握啦"}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </section>
 
       <section className="panel">
