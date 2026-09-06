@@ -805,6 +805,58 @@ h2 {
   color: #8a6400;
 }
 
+.stage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stage-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stage-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.stage-name {
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.meter {
+  height: 12px;
+  border-radius: 999px;
+  background: #f3ead9;
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffb703, #57a63d);
+  transition: width 0.4s ease;
+}
+
+.stage-meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.stage-next {
+  font-size: 13px;
+  color: #a06b00;
+}
+
+.stage-next.all {
+  color: #3d7a29;
+  font-weight: 700;
+}
+
 .result-reward {
   display: flex;
   flex-direction: column;

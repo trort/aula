@@ -7,6 +7,12 @@ import { speak, speechSupported } from "./lib/audio";
 import { STICKERS, calcSessionReward, nextSticker, randomPraise } from "./lib/rewards";
 import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
 import {
+  currentPackIndex,
+  mastered,
+  pickLessonChars,
+  type CharPack,
+} from "./lib/progress";
+import {
   MATH_LEVELS,
   buildMathQuestions,
   type MathLevel,
@@ -26,7 +32,6 @@ import {
 } from "./lib/storage";
 import type { AnswerItem, Domain, MathAnswerItem, Question, Screen } from "./lib/types";
 
-type BankGroup = (typeof bankJson.groups)[number];
 type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
@@ -43,11 +48,6 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
   const [domain, setDomain] = useState<Domain>("literacy");
   const [state, setState] = useState<AppState>(() => loadState());
-  const [selectedPacks, setSelectedPacks] = useState<string[]>(() =>
-    (bankJson as BankJson).groups
-      .filter((g) => CURATED.some((c) => c.pack === g.id))
-      .map((g) => g.id)
-  );
   const [levels, setLevels] = useState<MathLevel[]>(DEFAULT_LEVELS);
   const [questionCount, setQuestionCount] = useState(10);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -64,24 +64,37 @@ export default function App() {
     () => groups.filter((g) => CURATED.some((c) => c.pack === g.id)),
     [groups]
   );
+  const packs = useMemo<CharPack[]>(
+    () =>
+      selectableGroups.map((g) => ({
+        id: g.id,
+        title: g.title.replace(/^识字\d+ /, ""),
+        chars: CURATED.filter((c) => c.pack === g.id && c.decoys.length >= 2),
+      })),
+    [selectableGroups]
+  );
+  const currentIdx = useMemo(
+    () => currentPackIndex(packs, state.chars),
+    [packs, state.chars]
+  );
+  const currentPack = packs[currentIdx];
+  const nextPack = packs[currentIdx + 1] ?? null;
+  const currentMastered = currentPack
+    ? currentPack.chars.filter((c) => mastered(state.chars[c.ch])).length
+    : 0;
+  const totalChars = packs.reduce((sum, p) => sum + p.chars.length, 0);
 
   const startLiteracy = useCallback(() => {
-    const entries = CURATED.filter((c) => selectedPacks.includes(c.pack));
-    const priority = new Set(
-      Object.entries(state.chars)
-        .filter(([ch]) => entries.some((e) => e.ch === ch))
-        .filter(([, stat]) => dueMs(stat) <= 0)
-        .map(([ch]) => ch)
-    );
-    const qs = buildQuestions(entries, questionCount, priority);
+    const chosen = pickLessonChars(packs, state.chars, 10);
+    const qs = buildQuestions(chosen, 10, new Set());
     if (qs.length === 0) {
-      alert("这个字包里能出题的汉字还不够，请多勾选几个字组。");
+      alert("暂时没有可练的字，先让孩子复习一下再开始吧。");
       return;
     }
     setQuestions(qs);
     setDomain("literacy");
     setScreen("quiz");
-  }, [selectedPacks, questionCount, state.chars]);
+  }, [packs, state.chars]);
 
   const startMath = useCallback(() => {
     if (levels.length === 0) {
@@ -191,13 +204,11 @@ export default function App() {
       <HomeScreen
         domain={domain}
         onDomainChange={setDomain}
-        groups={selectableGroups}
-        selectedPacks={selectedPacks}
-        onTogglePack={(id) =>
-          setSelectedPacks((prev) =>
-            prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-          )
-        }
+        currentPackTitle={currentPack?.title ?? ""}
+        currentPackTotal={currentPack?.chars.length ?? 0}
+        currentMastered={currentMastered}
+        nextPackTitle={nextPack?.title ?? null}
+        totalChars={totalChars}
         levels={levels}
         onToggleLevel={(id) =>
           setLevels((prev) =>
@@ -296,9 +307,11 @@ function DomainSwitch(props: { domain: Domain; onChange: (d: Domain) => void }) 
 function HomeScreen(props: {
   domain: Domain;
   onDomainChange: (d: Domain) => void;
-  groups: BankGroup[];
-  selectedPacks: string[];
-  onTogglePack: (id: string) => void;
+  currentPackTitle: string;
+  currentPackTotal: number;
+  currentMastered: number;
+  nextPackTitle: string | null;
+  totalChars: number;
   levels: MathLevel[];
   onToggleLevel: (id: MathLevel) => void;
   questionCount: number;
@@ -344,7 +357,7 @@ function HomeScreen(props: {
       </div>
 
       <section className="panel">
-        <h2>{isMath ? "今天练哪个难度？" : "今天学了哪些字？"}</h2>
+        <h2>{isMath ? "今天练哪个难度？" : "下一课"}</h2>
         {isMath ? (
           <div className="chips level-chips">
             {MATH_LEVELS.map((lv) => {
@@ -362,53 +375,63 @@ function HomeScreen(props: {
             })}
           </div>
         ) : (
-          <div className="chips">
-            {props.groups.map((g) => {
-              const active = props.selectedPacks.includes(g.id);
-              return (
-                <button
-                  key={g.id}
-                  className={active ? "chip active" : "chip"}
-                  onClick={() => props.onTogglePack(g.id)}
-                >
-                  {g.title.replace(/^识字\d+ /, "")}
-                  <span className="chip-count">{g.chars.length}</span>
-                </button>
-              );
-            })}
+          <div className="stage-card">
+            <div className="stage-row">
+              <span className="stage-label">当前课程</span>
+              <span className="stage-name">{props.currentPackTitle}</span>
+            </div>
+            <div className="meter">
+              <div
+                className="meter-fill"
+                style={{
+                  width: `${
+                    props.currentPackTotal === 0
+                      ? 100
+                      : Math.round((props.currentMastered / props.currentPackTotal) * 100)
+                  }%`,
+                }}
+              />
+            </div>
+            <div className="stage-meta">
+              已掌握 {props.currentMastered} / {props.currentPackTotal} 个字
+            </div>
+            {props.nextPackTitle ? (
+              <div className="stage-next">掌握 70% 后解锁下一课：{props.nextPackTitle}</div>
+            ) : (
+              <div className="stage-next all">全部学完，进入自由复习 🎉</div>
+            )}
           </div>
         )}
         {props.levels.length === 0 && isMath && <p className="hint">至少要选一个难度哦。</p>}
-        {props.selectedPacks.length === 0 && !isMath && (
-          <p className="hint">至少要选一组才能开始哦。</p>
-        )}
       </section>
 
-      <section className="panel">
-        <h2>做几题？</h2>
-        <div className="chips">
-          {COUNT_OPTIONS.map((n) => (
-            <button
-              key={n}
-              className={props.questionCount === n ? "chip active" : "chip"}
-              onClick={() => props.onCountChange(n)}
-            >
-              {n} 题
-            </button>
-          ))}
-        </div>
-      </section>
+      {isMath && (
+        <section className="panel">
+          <h2>做几题？</h2>
+          <div className="chips">
+            {COUNT_OPTIONS.map((n) => (
+              <button
+                key={n}
+                className={props.questionCount === n ? "chip active" : "chip"}
+                onClick={() => props.onCountChange(n)}
+              >
+                {n} 题
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <button
         className="btn-start"
-        disabled={isMath ? props.levels.length === 0 : props.selectedPacks.length === 0}
+        disabled={isMath ? props.levels.length === 0 : false}
         onClick={props.onStart}
       >
-        开始！
+        {isMath ? "开始！" : props.currentMastered === 0 ? "开始第一课" : "继续练习"}
       </button>
 
       <footer className="home-footer">
-        <span>{isMath ? "难度 L1–L6" : `可选字组 ${props.groups.length} 组`}</span>
+        <span>{isMath ? "难度 L1–L6" : `共 ${props.totalChars} 字 · 自动进阶`}</span>
         <button className="link" onClick={props.onOpenStats}>
           家长数据{props.dueCount > 0 ? `（${props.dueCount} 项待复习）` : ""}
         </button>
