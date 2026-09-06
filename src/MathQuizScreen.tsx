@@ -25,6 +25,24 @@ export default function MathQuizScreen(props: {
   const isCorrect = confirmed && Number(input) === q.answer;
   const [before, after] = q.text.split("?");
 
+  const finishOrNext = (nc: number, nm: string[], na: MathAnswerItem[]) => {
+    if (idx + 1 >= props.questions.length) {
+      props.onFinish({
+        at: startedAt,
+        domain: "math",
+        total: props.questions.length,
+        correct: nc,
+        missed: nm,
+        answers: na,
+      });
+    } else {
+      setIdx((i) => i + 1);
+      setInput("");
+      setConfirmed(false);
+      lockRef.current = false;
+    }
+  };
+
   const typeDigit = (d: string) => {
     if (confirmed) return;
     setInput((prev) => (prev.length >= maxLen ? prev : prev + d));
@@ -47,24 +65,13 @@ export default function MathQuizScreen(props: {
     setCorrectCount(nextCorrect);
     setMissed(nextMissed);
 
-    window.setTimeout(() => {
-      if (idx + 1 >= props.questions.length) {
-        props.onFinish({
-          at: startedAt,
-          domain: "math",
-          total: props.questions.length,
-          correct: nextCorrect,
-          missed: nextMissed,
-          answers: nextAnswers,
-        });
-      } else {
-        setIdx((i) => i + 1);
-        setInput("");
-        setConfirmed(false);
-        lockRef.current = false;
-      }
-    }, ok ? 650 : 1400);
+    // 答对：自动进入下一题；答错：先展示正确答案，孩子确认后再继续
+    if (ok) {
+      window.setTimeout(() => finishOrNext(nextCorrect, nextMissed, nextAnswers), 700);
+    }
   };
+
+  const isLast = idx + 1 >= props.questions.length;
 
   return (
     <div className="screen quiz math-fill">
@@ -127,11 +134,20 @@ export default function MathQuizScreen(props: {
         </div>
       </div>
 
-      {confirmed && (
-        <div className={isCorrect ? "feedback ok" : "feedback no"}>
-          {isCorrect ? "太棒了！" : `正确答案：${q.answer}`}
-        </div>
-      )}
+      {confirmed &&
+        (isCorrect ? (
+          <div className="feedback ok">太棒了！</div>
+        ) : (
+          <div className="wrong-actions">
+            <div className="feedback no">正确答案：{q.answer}</div>
+            <button
+              className="btn-next"
+              onClick={() => finishOrNext(correctCount, missed, answers)}
+            >
+              {isLast ? "看结果 →" : "继续 →"}
+            </button>
+          </div>
+        ))}
     </div>
   );
 }

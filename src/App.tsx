@@ -429,6 +429,23 @@ function QuizScreen(props: {
 
   if (!q) return null;
 
+  const finishOrNext = (nc: number, nm: string[], na: AnswerItem[]) => {
+    if (idx + 1 >= props.questions.length) {
+      props.onFinish({
+        at: startedAt,
+        domain: "literacy",
+        total: props.questions.length,
+        correct: nc,
+        missed: nm,
+        answers: na,
+      });
+    } else {
+      setIdx((i) => i + 1);
+      setPicked(null);
+      lockRef.current = false;
+    }
+  };
+
   const choose = (ch: string, isTarget: boolean) => {
     if (lockRef.current) return;
     lockRef.current = true;
@@ -442,23 +459,13 @@ function QuizScreen(props: {
     setAnswers(nextAnswers);
     setCorrectCount(nextCorrect);
     setMissed(nextMissed);
-    window.setTimeout(() => {
-      if (idx + 1 >= props.questions.length) {
-        props.onFinish({
-          at: startedAt,
-          domain: "literacy",
-          total: props.questions.length,
-          correct: nextCorrect,
-          missed: nextMissed,
-          answers: nextAnswers,
-        });
-      } else {
-        setIdx((i) => i + 1);
-        setPicked(null);
-        lockRef.current = false;
-      }
-    }, isTarget ? 650 : 1300);
+    // 答对：短暂鼓励后自动进入下一题；答错：等孩子看完正确答案后手动继续
+    if (isTarget) {
+      window.setTimeout(() => finishOrNext(nextCorrect, nextMissed, nextAnswers), 700);
+    }
   };
+
+  const isLast = idx + 1 >= props.questions.length;
 
   return (
     <div className="screen quiz">
@@ -505,17 +512,22 @@ function QuizScreen(props: {
         </div>
       </div>
 
-      {answered && (
-        <div className={isCorrect ? "feedback ok" : "feedback no"}>
-          {isCorrect ? (
-            "太棒了！"
-          ) : (
-            <>
+      {answered &&
+        (isCorrect ? (
+          <div className="feedback ok">太棒了！</div>
+        ) : (
+          <div className="wrong-actions">
+            <div className="feedback no">
               这个字是“<span className="hanzi-inline">{q.target}</span>”
-            </>
-          )}
-        </div>
-      )}
+            </div>
+            <button
+              className="btn-next"
+              onClick={() => finishOrNext(correctCount, missed, answers)}
+            >
+              {isLast ? "看结果 →" : "继续 →"}
+            </button>
+          </div>
+        ))}
     </div>
   );
 }
