@@ -1,0 +1,20 @@
+{
+  "name": "识字岛 · 幼小衔接识字小助手",
+  "short_name": "识字岛",
+  "description": "纯本地运行的幼小衔接识字复习小助手：听音辨字、即时反馈、零注册零后端。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff4e0",
+  "theme_color": "#fff4e0",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
+
