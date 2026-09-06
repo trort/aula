@@ -1,4 +1,4 @@
-const CACHE_NAME = "kids-learning-companion-v2";
+const CACHE_NAME = "kids-learning-companion-v3";
 const PRECACHE = ["./", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (event) => {

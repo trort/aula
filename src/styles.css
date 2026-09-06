@@ -10,6 +10,8 @@
   --soft-red: #fbe3dd;
   --red: #c75b45;
   --radius: 24px;
+  /* 教材用楷书：认字一律走楷体字族 */
+  --kai: "Kaiti SC", "STKaiti", "KaiTi", "楷体", "FangSong", serif;
   font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
 
@@ -38,6 +40,7 @@ body {
 }
 
 .screen {
+  position: relative;
   max-width: 640px;
   margin: 0 auto;
   min-height: 100vh;
@@ -99,7 +102,7 @@ body {
   font-size: 18px;
   line-height: 28px;
   text-align: center;
-  font-family: "Kaiti SC", "STKaiti", "KaiTi", serif;
+  font-family: var(--kai);
 }
 
 .logo {
@@ -113,6 +116,28 @@ body {
   line-height: 88px;
   margin: 0 auto 10px;
   box-shadow: 0 8px 20px rgba(255, 183, 3, 0.35);
+  font-family: var(--kai);
+}
+
+.fullscreen-btn {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  right: 14px;
+  border: 1px solid #eadfcb;
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 13px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  z-index: 5;
+  font-family: inherit;
+}
+
+.fullscreen-btn.active {
+  color: #8a6400;
+  border-color: #e8c98a;
+  background: #fff8ea;
 }
 
 h1 {
@@ -429,10 +454,16 @@ h2 {
 }
 
 .hanzi {
-  font-family: "Kaiti SC", "STKaiti", "KaiTi", "FangSong", serif;
+  font-family: var(--kai);
   font-size: clamp(54px, 15vw, 92px);
   line-height: 1;
   color: var(--ink);
+}
+
+.hanzi-inline {
+  font-family: var(--kai);
+  font-size: 30px;
+  vertical-align: -3px;
 }
 
 .feedback {

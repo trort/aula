@@ -263,6 +263,7 @@ function HomeScreen(props: {
   const last = props.lastResult && props.lastResult.domain === props.domain ? props.lastResult : null;
   return (
     <div className="screen home">
+      <FullscreenButton />
       <header className="hero">
         <DomainSwitch domain={props.domain} onChange={props.onDomainChange} />
         <div className="logo" aria-hidden="true">{isMath ? "数" : "字"}</div>
@@ -356,6 +357,49 @@ function HomeScreen(props: {
         </button>
       </footer>
     </div>
+  );
+}
+
+function FullscreenButton() {
+  const supported =
+    typeof document !== "undefined" &&
+    "fullscreenEnabled" in document &&
+    document.fullscreenEnabled === true;
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    if (!supported) return;
+    const onChange = () => setActive(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, [supported]);
+
+  const toggle = async () => {
+    if (!supported) {
+      alert(
+        "当前浏览器不支持网页全屏。\n\n在 iPad 上请用 Safari 的「分享 → 添加到主屏幕」，之后从主屏幕打开就是全屏模式。"
+      );
+      return;
+    }
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      // 用户取消或被系统拒绝时静默
+    }
+  };
+
+  return (
+    <button
+      className={active ? "fullscreen-btn active" : "fullscreen-btn"}
+      onClick={toggle}
+      aria-label={active ? "退出全屏" : "进入全屏"}
+    >
+      {active ? "⛶ 退出全屏" : "⛶ 全屏"}
+    </button>
   );
 }
 
@@ -463,7 +507,13 @@ function QuizScreen(props: {
 
       {answered && (
         <div className={isCorrect ? "feedback ok" : "feedback no"}>
-          {isCorrect ? "太棒了！" : `这个字是“${q.target}”`}
+          {isCorrect ? (
+            "太棒了！"
+          ) : (
+            <>
+              这个字是“<span className="hanzi-inline">{q.target}</span>”
+            </>
+          )}
         </div>
       )}
     </div>
