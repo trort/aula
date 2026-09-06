@@ -1,3 +1,5 @@
+import type { Domain } from "./types";
+
 const STORAGE_KEY = "kids-learning-companion-v1";
 
 export interface CharStat {
@@ -11,6 +13,7 @@ export interface CharStat {
 
 export interface SessionSummary {
   at: number;
+  domain: Domain;
   total: number;
   correct: number;
   missed: string[];
@@ -19,12 +22,14 @@ export interface SessionSummary {
 export interface AppState {
   v: 1;
   chars: Record<string, CharStat>;
+  math: Record<string, CharStat>; // key = 难度级别 L1..L6
   sessions: SessionSummary[];
 }
 
 export const emptyState = (): AppState => ({
   v: 1,
   chars: {},
+  math: {},
   sessions: [],
 });
 
@@ -32,9 +37,24 @@ export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyState();
-    const parsed = JSON.parse(raw) as AppState;
+    const parsed = JSON.parse(raw) as Partial<AppState> & {
+      sessions?: Array<Partial<SessionSummary>>;
+    };
     if (!parsed || parsed.v !== 1 || typeof parsed.chars !== "object") return emptyState();
-    return { v: 1, chars: parsed.chars ?? {}, sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [] };
+    return {
+      v: 1,
+      chars: parsed.chars ?? {},
+      math: parsed.math ?? {},
+      sessions: Array.isArray(parsed.sessions)
+        ? parsed.sessions.map((s) => ({
+            at: s.at ?? 0,
+            domain: (s.domain === "math" ? "math" : "literacy") as Domain,
+            total: s.total ?? 0,
+            correct: s.correct ?? 0,
+            missed: s.missed ?? [],
+          }))
+        : [],
+    };
   } catch {
     return emptyState();
   }
@@ -75,6 +95,27 @@ export function recordAnswer(
   state.chars[ch] = stat;
 }
 
+export function recordMathAnswer(state: AppState, level: string, ok: boolean): void {
+  const stat = state.math[level] ?? {
+    right: 0,
+    wrong: 0,
+    streak: 0,
+    seenAt: 0,
+    lastOk: false,
+    confusion: {},
+  };
+  stat.seenAt = Date.now();
+  stat.lastOk = ok;
+  if (ok) {
+    stat.right += 1;
+    stat.streak += 1;
+  } else {
+    stat.wrong += 1;
+    stat.streak = 0;
+  }
+  state.math[level] = stat;
+}
+
 export function addSession(state: AppState, summary: SessionSummary): void {
   state.sessions.unshift(summary);
   state.sessions = state.sessions.slice(0, 200);
@@ -104,14 +145,24 @@ export function exportState(state: AppState): void {
 
 export async function importState(file: File): Promise<AppState> {
   const text = await file.text();
-  const parsed = JSON.parse(text) as AppState;
+  const parsed = JSON.parse(text) as Partial<AppState> & {
+    sessions?: Array<Partial<SessionSummary>>;
+  };
   if (!parsed || parsed.v !== 1 || typeof parsed.chars !== "object") {
     throw new Error("文件格式不对：不是识字岛导出的 v1 数据");
   }
   return {
     v: 1,
     chars: parsed.chars ?? {},
-    sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
+    math: parsed.math ?? {},
+    sessions: Array.isArray(parsed.sessions)
+      ? parsed.sessions.map((s) => ({
+          at: s.at ?? 0,
+          domain: (s.domain === "math" ? "math" : "literacy") as Domain,
+          total: s.total ?? 0,
+          correct: s.correct ?? 0,
+          missed: s.missed ?? [],
+        }))
+      : [],
   };
 }
-

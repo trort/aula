@@ -1,4 +1,5 @@
 export type Screen = "home" | "quiz" | "result" | "stats";
+export type Domain = "literacy" | "math";
 
 export interface QuestionOption {
   ch: string;
@@ -17,8 +18,14 @@ export interface AnswerItem {
   decoy?: string;
 }
 
+export interface MathAnswerItem {
+  level: string;
+  ok: boolean;
+}
+
 export interface SessionResult {
   at: number;
+  domain: Domain;
   total: number;
   correct: number;
   missed: string[];
