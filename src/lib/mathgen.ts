@@ -34,7 +34,6 @@ export interface MathQuestion {
   answer: number;
   text: string; // 展示用，如 "3 + 2 = ?"
   speakText: string; // TTS 用中文，如 "三加二等于几"
-  options: number[];
 }
 
 const CN_DIGITS = "零一二三四五六七八九";
@@ -62,40 +61,6 @@ function shuffle<T>(list: T[]): T[] {
   return arr;
 }
 
-function digitSwap(n: number): number | null {
-  if (n < 10 || n > 99) return null;
-  const ones = n % 10;
-  const tens = Math.floor(n / 10);
-  const swapped = ones * 10 + tens;
-  return swapped !== n ? swapped : null;
-}
-
-function buildDistractors(q: MathQuestion): number[] {
-  const set = new Set<number>();
-  const push = (n: number) => {
-    if (Number.isInteger(n) && n >= 0 && n <= 99 && n !== q.answer) set.add(n);
-  };
-
-  if (q.kind === "sub" || q.kind === "subBig") push(q.a + q.b);
-  if (q.kind === "add" || q.kind === "addBig") push(q.a - q.b);
-  if (q.kind === "missingAdd") push(q.answer + q.b);
-  if (q.kind === "missingSub") push(q.a - q.answer + q.a);
-  const swapped = digitSwap(q.answer);
-  if (swapped !== null) push(swapped);
-  push(q.answer + 1);
-  push(q.answer - 1);
-  push(q.answer + 2);
-  push(q.answer - 2);
-  push(q.answer + 10);
-  push(q.answer - 10);
-
-  for (let j = 3; j < 30 && set.size < 3; j++) {
-    push(q.answer + j);
-    push(q.answer - j);
-  }
-  return shuffle([...set]).slice(0, 3);
-}
-
 function makeQuestion(
   level: MathLevel,
   kind: MathKind,
@@ -105,9 +70,7 @@ function makeQuestion(
   text: string,
   speakText: string
 ): MathQuestion {
-  const q: MathQuestion = { level, kind, a, b, answer, text, speakText, options: [] };
-  q.options = shuffle([answer, ...buildDistractors(q)]);
-  return q;
+  return { level, kind, a, b, answer, text, speakText };
 }
 
 export function genMathQuestion(level: MathLevel): MathQuestion {
@@ -258,4 +221,3 @@ export function buildMathQuestions(levels: MathLevel[], size: number): MathQuest
   }
   return qs.slice(0, size);
 }
-

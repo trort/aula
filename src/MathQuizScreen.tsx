@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { speak } from "./lib/audio";
-import { fillAnswer, speakFilled, type MathQuestion } from "./lib/mathgen";
+import { fillAnswer, type MathQuestion } from "./lib/mathgen";
 import type { SessionSummary } from "./lib/storage";
 import type { MathAnswerItem } from "./lib/types";
 
@@ -10,7 +10,8 @@ export default function MathQuizScreen(props: {
   onQuit: () => void;
 }) {
   const [idx, setIdx] = useState(0);
-  const [picked, setPicked] = useState<number | null>(null);
+  const [input, setInput] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [missed, setMissed] = useState<string[]>([]);
   const [answers, setAnswers] = useState<MathAnswerItem[]>([]);
@@ -18,22 +19,27 @@ export default function MathQuizScreen(props: {
   const lockRef = useRef(false);
   const q = props.questions[idx];
 
-  const answered = picked !== null;
-  const isCorrect = answered && picked === q.answer;
-
-  useEffect(() => {
-    if (!q) return;
-    const timer = window.setTimeout(() => speak(q.speakText), 180);
-    return () => window.clearTimeout(timer);
-  }, [idx, q]);
-
   if (!q) return null;
 
-  const choose = (value: number) => {
-    if (lockRef.current) return;
+  const maxLen = String(q.answer).length;
+  const isCorrect = confirmed && Number(input) === q.answer;
+  const [before, after] = q.text.split("?");
+
+  const typeDigit = (d: string) => {
+    if (confirmed) return;
+    setInput((prev) => (prev.length >= maxLen ? prev : prev + d));
+  };
+
+  const backspace = () => {
+    if (confirmed) return;
+    setInput((prev) => prev.slice(0, -1));
+  };
+
+  const submit = () => {
+    if (confirmed || input.length === 0 || lockRef.current) return;
     lockRef.current = true;
-    setPicked(value);
-    const ok = value === q.answer;
+    const ok = Number(input) === q.answer;
+    setConfirmed(true);
     const nextAnswers: MathAnswerItem[] = [...answers, { level: q.level, ok }];
     const nextCorrect = correctCount + (ok ? 1 : 0);
     const nextMissed = ok ? missed : [...missed, fillAnswer(q)];
@@ -53,14 +59,15 @@ export default function MathQuizScreen(props: {
         });
       } else {
         setIdx((i) => i + 1);
-        setPicked(null);
+        setInput("");
+        setConfirmed(false);
         lockRef.current = false;
       }
     }, ok ? 650 : 1400);
   };
 
   return (
-    <div className="screen quiz">
+    <div className="screen quiz math-fill">
       <div className="quiz-top">
         <button className="link" onClick={props.onQuit}>退出</button>
         <div className="progress">
@@ -73,36 +80,54 @@ export default function MathQuizScreen(props: {
 
       <div className="quiz-body math-body">
         <div className="equation-line" aria-live="polite">
-          {answered ? fillAnswer(q) : q.text}
+          {before}
+          <span
+            className={
+              confirmed
+                ? isCorrect
+                  ? "fill-slot right"
+                  : "fill-slot wrong"
+                : "fill-slot"
+            }
+          >
+            {confirmed ? q.answer : input || "?"}
+          </span>
+          {after}
         </div>
-        <button className="btn-speaker" onClick={() => speak(answered ? speakFilled(q) : q.speakText)}>
+
+        <button className="btn-speaker" onClick={() => speak(q.speakText)}>
           <span className="speaker-icon">🔊</span>
-          <span className="speaker-label">{answered ? "再听答案" : "听一听"}</span>
+          <span className="speaker-label">听题</span>
         </button>
 
-        <div className="num-options">
-          {q.options.map((value) => {
-            let cls = "num-card";
-            if (answered) {
-              if (value === q.answer) cls += " card-correct";
-              else if (value === picked) cls += " card-wrong";
-              else cls += " card-dim";
-            }
-            return (
-              <button
-                key={value}
-                className={cls}
-                disabled={answered}
-                onClick={() => choose(value)}
-              >
-                <span className="num">{value}</span>
-              </button>
-            );
-          })}
+        <div className="keypad" aria-label="数字键盘">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
+            <button
+              key={d}
+              className="key"
+              disabled={confirmed}
+              onClick={() => typeDigit(String(d))}
+            >
+              {d}
+            </button>
+          ))}
+          <button className="key key-back" disabled={confirmed} onClick={backspace} aria-label="退格">
+            ⌫
+          </button>
+          <button className="key" disabled={confirmed} onClick={() => typeDigit("0")}>
+            0
+          </button>
+          <button
+            className="key key-ok"
+            disabled={confirmed || input.length === 0}
+            onClick={submit}
+          >
+            确定
+          </button>
         </div>
       </div>
 
-      {answered && (
+      {confirmed && (
         <div className={isCorrect ? "feedback ok" : "feedback no"}>
           {isCorrect ? "太棒了！" : `正确答案：${q.answer}`}
         </div>
