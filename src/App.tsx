@@ -36,6 +36,7 @@ type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
 const DEFAULT_LEVELS: MathLevel[] = ["L1", "L2", "L3"];
+const APP_VERSION = "0.15";
 
 interface LastReward {
   stars: number;
@@ -435,6 +436,7 @@ function HomeScreen(props: {
           家长数据{props.dueCount > 0 ? `（${props.dueCount} 项待复习）` : ""}
         </button>
       </footer>
+      <span className="version-tag" aria-hidden="true">v{APP_VERSION}</span>
     </div>
   );
 }

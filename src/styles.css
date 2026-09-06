@@ -857,6 +857,18 @@ h2 {
   font-weight: 700;
 }
 
+.version-tag {
+  position: absolute;
+  right: 10px;
+  bottom: max(4px, env(safe-area-inset-bottom));
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: #dcc9a4;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .bank-block {
   padding: 12px 0;
   border-bottom: 1px solid #f3ead9;
