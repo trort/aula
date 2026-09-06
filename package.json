@@ -1,7 +1,7 @@
 {
   "name": "kids-learning-companion",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.15.0",
   "type": "module",
   "description": "Kids Learning Companion - 幼小衔接识字数字伴侣 (MVP)",
   "scripts": {
@@ -22,4 +22,3 @@
     "vite": "^7.0.0"
   }
 }
-
