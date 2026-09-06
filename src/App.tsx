@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import bankJson from "../wordbank/grade1-shang-recognition.json";
 import MathQuizScreen from "./MathQuizScreen";
+import { CorrectBurst, StreakToast } from "./RewardFx";
 import { CURATED } from "./data/curated";
 import { speak, speechSupported } from "./lib/audio";
+import { STICKERS, calcSessionReward, nextSticker, randomPraise } from "./lib/rewards";
+import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
 import {
   MATH_LEVELS,
   buildMathQuestions,
@@ -29,6 +32,13 @@ type BankJson = typeof bankJson;
 const COUNT_OPTIONS = [5, 10, 15];
 const DEFAULT_LEVELS: MathLevel[] = ["L1", "L2", "L3"];
 
+interface LastReward {
+  stars: number;
+  bestStreak: number;
+  perfect: boolean;
+  sticker: string;
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
   const [domain, setDomain] = useState<Domain>("literacy");
@@ -43,6 +53,7 @@ export default function App() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [mathQuestions, setMathQuestions] = useState<ReturnType<typeof buildMathQuestions>>([]);
   const [lastResult, setLastResult] = useState<SessionSummary | null>(null);
+  const [lastReward, setLastReward] = useState<LastReward | null>(null);
 
   useEffect(() => {
     persist(state);
@@ -85,8 +96,19 @@ export default function App() {
 
   const finishSession = useCallback(
     (summary: SessionSummary & { answers: AnswerItem[] }) => {
+      const reward = calcSessionReward(summary.answers);
+      const sticker = nextSticker(state.rewards.stickers.length);
       setState((prev) => {
-        const next: AppState = { ...prev, chars: { ...prev.chars }, sessions: [...prev.sessions] };
+        const next: AppState = {
+          ...prev,
+          chars: { ...prev.chars },
+          rewards: {
+            stars: prev.rewards.stars + reward.stars,
+            stickers: [...prev.rewards.stickers, sticker],
+            perfect: prev.rewards.perfect + (reward.perfect ? 1 : 0),
+          },
+          sessions: [...prev.sessions],
+        };
         for (const answer of summary.answers) {
           recordAnswer(next, answer.ch, answer.ok, answer.decoy);
         }
@@ -106,15 +128,32 @@ export default function App() {
         correct: summary.correct,
         missed: summary.missed,
       });
+      setLastReward({
+        stars: reward.stars,
+        bestStreak: reward.bestStreak,
+        perfect: reward.perfect,
+        sticker,
+      });
       setScreen("result");
     },
-    []
+    [state.rewards.stickers.length]
   );
 
   const finishMathSession = useCallback(
     (summary: SessionSummary & { answers: MathAnswerItem[] }) => {
+      const reward = calcSessionReward(summary.answers);
+      const sticker = nextSticker(state.rewards.stickers.length);
       setState((prev) => {
-        const next: AppState = { ...prev, math: { ...prev.math }, sessions: [...prev.sessions] };
+        const next: AppState = {
+          ...prev,
+          math: { ...prev.math },
+          rewards: {
+            stars: prev.rewards.stars + reward.stars,
+            stickers: [...prev.rewards.stickers, sticker],
+            perfect: prev.rewards.perfect + (reward.perfect ? 1 : 0),
+          },
+          sessions: [...prev.sessions],
+        };
         for (const answer of summary.answers) {
           recordMathAnswer(next, answer.level, answer.ok);
         }
@@ -134,9 +173,15 @@ export default function App() {
         correct: summary.correct,
         missed: summary.missed,
       });
+      setLastReward({
+        stars: reward.stars,
+        bestStreak: reward.bestStreak,
+        perfect: reward.perfect,
+        sticker,
+      });
       setScreen("result");
     },
-    []
+    [state.rewards.stickers.length]
   );
 
   const goHome = useCallback(() => setScreen("home"), []);
@@ -168,6 +213,9 @@ export default function App() {
             ? Object.values(state.math).filter((s) => dueMs(s) <= 0).length
             : Object.values(state.chars).filter((s) => dueMs(s) <= 0).length
         }
+        stars={state.rewards.stars}
+        stickerCount={state.rewards.stickers.length}
+        perfect={state.rewards.perfect}
         lastResult={lastResult}
       />
     );
@@ -195,6 +243,7 @@ export default function App() {
     return (
       <ResultScreen
         result={lastResult}
+        reward={lastReward}
         onRestart={domain === "math" ? startMath : startLiteracy}
         onHome={goHome}
       />
@@ -257,6 +306,9 @@ function HomeScreen(props: {
   onStart: () => void;
   onOpenStats: () => void;
   dueCount: number;
+  stars: number;
+  stickerCount: number;
+  perfect: number;
   lastResult: SessionSummary | null;
 }) {
   const isMath = props.domain === "math";
@@ -284,6 +336,12 @@ function HomeScreen(props: {
           )}
         </div>
       )}
+
+      <div className="reward-strip" aria-label="我的收获">
+        <span>⭐ 星星罐 {props.stars}</span>
+        <span>贴纸 {props.stickerCount} 张</span>
+        <span>🏅 {props.perfect} 次</span>
+      </div>
 
       <section className="panel">
         <h2>{isMath ? "今天练哪个难度？" : "今天学了哪些字？"}</h2>
@@ -371,6 +429,11 @@ function QuizScreen(props: {
   const [answers, setAnswers] = useState<AnswerItem[]>([]);
   const startedAt = useMemo(() => Date.now(), []);
   const lockRef = useRef(false);
+  const [streak, setStreak] = useState(0);
+  const [burstId, setBurstId] = useState(0);
+  const [praise, setPraise] = useState("太棒了！");
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
   const q = props.questions[idx];
 
   const answered = picked !== null;
@@ -398,6 +461,7 @@ function QuizScreen(props: {
     } else {
       setIdx((i) => i + 1);
       setPicked(null);
+      setToast(null);
       lockRef.current = false;
     }
   };
@@ -417,7 +481,21 @@ function QuizScreen(props: {
     setMissed(nextMissed);
     // 答对：短暂鼓励后自动进入下一题；答错：等孩子看完正确答案后手动继续
     if (isTarget) {
+      const newStreak = streak + 1;
+      setStreak(newStreak);
+      setPraise(randomPraise());
+      setBurstId((id) => id + 1);
+      playCorrect(newStreak);
+      if (newStreak === 3 || newStreak === 5 || newStreak === 8) {
+        playMilestone();
+        setToast(`🔥 连对 ${newStreak} 个！+1⭐`);
+        if (toastTimer.current) window.clearTimeout(toastTimer.current);
+        toastTimer.current = window.setTimeout(() => setToast(null), 1500);
+      }
       window.setTimeout(() => finishOrNext(nextCorrect, nextMissed, nextAnswers), 700);
+    } else {
+      playWrong();
+      setStreak(0);
     }
   };
 
@@ -425,6 +503,7 @@ function QuizScreen(props: {
 
   return (
     <div className="screen quiz">
+      {isCorrect && answered && <CorrectBurst burstId={burstId} />}
       <div className="quiz-top">
         <button className="link" onClick={props.onQuit}>退出</button>
         <div className="progress">
@@ -434,6 +513,9 @@ function QuizScreen(props: {
               className={i < idx ? "dot done" : i === idx ? "dot now" : "dot"}
             />
           ))}
+        </div>
+        <div className="streak-pill" aria-hidden="true">
+          {streak >= 2 ? `🔥 ${streak}` : ""}
         </div>
         <span className="counter">
           {idx + 1}/{props.questions.length}
@@ -470,7 +552,7 @@ function QuizScreen(props: {
 
       {answered &&
         (isCorrect ? (
-          <div className="feedback ok">太棒了！</div>
+          <div className="feedback ok">⭐ {praise}</div>
         ) : (
           <div className="wrong-actions">
             <div className="feedback no">
@@ -484,12 +566,14 @@ function QuizScreen(props: {
             </button>
           </div>
         ))}
+      <StreakToast text={toast} />
     </div>
   );
 }
 
 function ResultScreen(props: {
   result: SessionSummary | null;
+  reward: LastReward | null;
   onRestart: () => void;
   onHome: () => void;
 }) {
@@ -501,6 +585,16 @@ function ResultScreen(props: {
   return (
     <div className="screen result">
       <div className="stars">{stars}</div>
+      {props.reward && (
+        <div className="result-reward">
+          <div className="reward-gain">
+            本轮 +{props.reward.stars} ⭐
+            {props.reward.bestStreak >= 3 ? ` · 最高连对 ${props.reward.bestStreak}` : ""}
+          </div>
+          {props.reward.perfect && <div className="perfect-badge">🏅 全对，完美！</div>}
+          <div className="sticker-gain">获得贴纸 {props.reward.sticker}</div>
+        </div>
+      )}
       <h1>
         答对 {r.correct} / {r.total}
       </h1>
@@ -590,6 +684,24 @@ function StatsScreen(props: {
             <span key={lv} className="mini-card level-mini">{levelLabel(lv)}</span>
           ))}
         </div>
+      </section>
+
+      <section className="panel">
+        <h2>
+          收获：⭐ 星星罐 {props.state.rewards.stars} · 🏅 全对 {props.state.rewards.perfect} 次
+        </h2>
+        <p className="hint">
+          贴纸簿：已收集 {props.state.rewards.stickers.length} / {STICKERS.length} 张
+        </p>
+        {props.state.rewards.stickers.length > 0 ? (
+          <div className="missed-chars">
+            {props.state.rewards.stickers.map((s, i) => (
+              <span key={`${s}-${i}`} className="mini-card sticker-mini">{s}</span>
+            ))}
+          </div>
+        ) : (
+          <p className="hint">答对题目攒星星，完成一轮就能收集第一张贴纸啦！</p>
+        )}
       </section>
 
       <section className="panel">

@@ -1,6 +1,9 @@
 import { useMemo, useRef, useState } from "react";
+import { CorrectBurst, StreakToast } from "./RewardFx";
 import { speak } from "./lib/audio";
 import { fillAnswer, type MathQuestion } from "./lib/mathgen";
+import { randomPraise } from "./lib/rewards";
+import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
 import type { SessionSummary } from "./lib/storage";
 import type { MathAnswerItem } from "./lib/types";
 
@@ -17,6 +20,11 @@ export default function MathQuizScreen(props: {
   const [answers, setAnswers] = useState<MathAnswerItem[]>([]);
   const startedAt = useMemo(() => Date.now(), []);
   const lockRef = useRef(false);
+  const [streak, setStreak] = useState(0);
+  const [burstId, setBurstId] = useState(0);
+  const [praise, setPraise] = useState("太棒了！");
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
   const q = props.questions[idx];
 
   if (!q) return null;
@@ -39,6 +47,7 @@ export default function MathQuizScreen(props: {
       setIdx((i) => i + 1);
       setInput("");
       setConfirmed(false);
+      setToast(null);
       lockRef.current = false;
     }
   };
@@ -67,7 +76,21 @@ export default function MathQuizScreen(props: {
 
     // 答对：自动进入下一题；答错：先展示正确答案，孩子确认后再继续
     if (ok) {
+      const newStreak = streak + 1;
+      setStreak(newStreak);
+      setPraise(randomPraise());
+      setBurstId((id) => id + 1);
+      playCorrect(newStreak);
+      if (newStreak === 3 || newStreak === 5 || newStreak === 8) {
+        playMilestone();
+        setToast(`🔥 连对 ${newStreak} 个！+1⭐`);
+        if (toastTimer.current) window.clearTimeout(toastTimer.current);
+        toastTimer.current = window.setTimeout(() => setToast(null), 1500);
+      }
       window.setTimeout(() => finishOrNext(nextCorrect, nextMissed, nextAnswers), 700);
+    } else {
+      playWrong();
+      setStreak(0);
     }
   };
 
@@ -75,12 +98,16 @@ export default function MathQuizScreen(props: {
 
   return (
     <div className="screen quiz math-fill">
+      {isCorrect && confirmed && <CorrectBurst burstId={burstId} />}
       <div className="quiz-top">
         <button className="link" onClick={props.onQuit}>退出</button>
         <div className="progress">
           {Array.from({ length: props.questions.length }, (_, i) => (
             <span key={i} className={i < idx ? "dot done" : i === idx ? "dot now" : "dot"} />
           ))}
+        </div>
+        <div className="streak-pill" aria-hidden="true">
+          {streak >= 2 ? `🔥 ${streak}` : ""}
         </div>
         <span className="counter">{idx + 1}/{props.questions.length}</span>
       </div>
@@ -136,7 +163,7 @@ export default function MathQuizScreen(props: {
 
       {confirmed &&
         (isCorrect ? (
-          <div className="feedback ok">太棒了！</div>
+          <div className="feedback ok">⭐ {praise}</div>
         ) : (
           <div className="wrong-actions">
             <div className="feedback no">正确答案：{q.answer}</div>
@@ -148,6 +175,7 @@ export default function MathQuizScreen(props: {
             </button>
           </div>
         ))}
+      <StreakToast text={toast} />
     </div>
   );
 }

@@ -23,13 +23,21 @@ export interface AppState {
   v: 1;
   chars: Record<string, CharStat>;
   math: Record<string, CharStat>; // key = 难度级别 L1..L6
+  rewards: RewardState;
   sessions: SessionSummary[];
+}
+
+export interface RewardState {
+  stars: number; // 星星罐累计
+  stickers: string[]; // 已获得的贴纸（emoji）
+  perfect: number; // 全对次数
 }
 
 export const emptyState = (): AppState => ({
   v: 1,
   chars: {},
   math: {},
+  rewards: { stars: 0, stickers: [], perfect: 0 },
   sessions: [],
 });
 
@@ -45,6 +53,11 @@ export function loadState(): AppState {
       v: 1,
       chars: parsed.chars ?? {},
       math: parsed.math ?? {},
+      rewards: {
+        stars: parsed.rewards?.stars ?? 0,
+        stickers: parsed.rewards?.stickers ?? [],
+        perfect: parsed.rewards?.perfect ?? 0,
+      },
       sessions: Array.isArray(parsed.sessions)
         ? parsed.sessions.map((s) => ({
             at: s.at ?? 0,
@@ -155,6 +168,11 @@ export async function importState(file: File): Promise<AppState> {
     v: 1,
     chars: parsed.chars ?? {},
     math: parsed.math ?? {},
+    rewards: {
+      stars: parsed.rewards?.stars ?? 0,
+      stickers: parsed.rewards?.stickers ?? [],
+      perfect: parsed.rewards?.perfect ?? 0,
+    },
     sessions: Array.isArray(parsed.sessions)
       ? parsed.sessions.map((s) => ({
           at: s.at ?? 0,
