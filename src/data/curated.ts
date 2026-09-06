@@ -15,7 +15,7 @@ export const CURATED: CuratedChar[] = [
   { ch: "地", py: "dì", pack: "s1", decoys: ["他", "也", "池"] },
   { ch: "人", py: "rén", pack: "s1", decoys: ["入", "八", "大", "个"] },
   { ch: "你", py: "nǐ", pack: "s1", decoys: ["他", "们", "体", "您"] },
-  { ch: "我", py: "wǒ", pack: "s1", decoys: ["找", "成", "伐", "战"] },
+  { ch: "我", py: "wǒ", pack: "s1", decoys: ["找", "成", "伐"] },
   { ch: "他", py: "tā", pack: "s1", decoys: ["地", "也", "你", "池"] },
 
   // 识字2 金木水火土
@@ -29,7 +29,7 @@ export const CURATED: CuratedChar[] = [
 
   // 识字3 口耳目
   { ch: "口", py: "kǒu", pack: "s3", decoys: ["日", "中", "回", "田"] },
-  { ch: "耳", py: "ěr", pack: "s3", decoys: ["目", "手", "月", "贝"] },
+  { ch: "耳", py: "ěr", pack: "s3", decoys: ["目", "月", "贝"] },
   { ch: "目", py: "mù", pack: "s3", decoys: ["日", "白", "自", "田"] },
   { ch: "手", py: "shǒu", pack: "s3", decoys: ["毛", "牛", "午", "平"] },
   { ch: "足", py: "zú", pack: "s3", decoys: ["走", "是", "定"] },
@@ -42,7 +42,7 @@ export const CURATED: CuratedChar[] = [
   { ch: "月", py: "yuè", pack: "s4", decoys: ["用", "目", "朋"] },
   { ch: "水", py: "shuǐ", pack: "s4", decoys: ["小", "永", "冰"] },
   { ch: "火", py: "huǒ", pack: "s4", decoys: ["大", "灭", "木"] },
-  { ch: "山", py: "shān", pack: "s4", decoys: ["出", "上", "土"] },
+  { ch: "山", py: "shān", pack: "s4", decoys: ["出", "凶", "岛"] },
   { ch: "石", py: "shí", pack: "s4", decoys: ["右", "后", "古"] },
   { ch: "田", py: "tián", pack: "s4", decoys: ["日", "由", "甲", "回"] },
   { ch: "禾", py: "hé", pack: "s4", decoys: ["木", "本", "未", "末"] },
@@ -50,11 +50,11 @@ export const CURATED: CuratedChar[] = [
   // 识字5 对韵歌
   { ch: "对", py: "duì", pack: "s5", decoys: ["时", "村", "过"] },
   { ch: "云", py: "yún", pack: "s5", decoys: ["去", "会", "元"] },
-  { ch: "雨", py: "yǔ", pack: "s5", decoys: ["两", "而", "云"] },
+  { ch: "雨", py: "yǔ", pack: "s5", decoys: ["两", "而", "雷"] },
   { ch: "风", py: "fēng", pack: "s5", decoys: ["凤", "几", "飞"] },
   { ch: "花", py: "huā", pack: "s5", decoys: ["草", "华", "朵"] },
   { ch: "鸟", py: "niǎo", pack: "s5", decoys: ["乌", "马", "岛"] },
-  { ch: "虫", py: "chóng", pack: "s5", decoys: ["中", "它", "鱼"] },
+  { ch: "虫", py: "chóng", pack: "s5", decoys: ["中", "电"] },
 
   // 语文园地一
   { ch: "六", py: "liù", pack: "y1", decoys: ["大", "文", "立"] },
@@ -71,7 +71,7 @@ export const CURATED: CuratedChar[] = [
   { ch: "了", py: "le", pack: "x1", decoys: ["子", "于", "才"] },
   { ch: "不", py: "bù", pack: "x1", decoys: ["木", "下", "小"] },
   { ch: "大", py: "dà", pack: "x1", decoys: ["太", "犬", "天"] },
-  { ch: "小", py: "xiǎo", pack: "x1", decoys: ["水", "少", "山"] },
+  { ch: "小", py: "xiǎo", pack: "x1", decoys: ["水", "少", "心"] },
   { ch: "多", py: "duō", pack: "x1", decoys: ["夕", "名", "岁"] },
   { ch: "少", py: "shǎo", pack: "x1", decoys: ["小", "水", "尘"] },
   { ch: "白", py: "bái", pack: "x1", decoys: ["日", "目", "百"] },
@@ -97,8 +97,8 @@ export const CURATED: CuratedChar[] = [
   { ch: "跳", py: "tiào", pack: "x1", decoys: ["挑", "桃", "逃"] },
   { ch: "高", py: "gāo", pack: "x1", decoys: ["亮", "京", "亭"] },
   { ch: "兴", py: "xìng", pack: "x1", decoys: ["关", "六", "头"] },
-  { ch: "快", py: "kuài", pack: "x1", decoys: ["块", "决", "吹"] },
-  { ch: "乐", py: "lè", pack: "x1", decoys: ["东", "车", "冬"] },
+  { ch: "快", py: "kuài", pack: "x1", decoys: ["块", "决", "怪"] },
+  { ch: "乐", py: "lè", pack: "x1", decoys: ["东", "车"] },
   { ch: "好", py: "hǎo", pack: "x1", decoys: ["妈", "她", "如"] },
   { ch: "的", py: "de", pack: "x1", decoys: ["白", "勺", "约"] },
   { ch: "爸", py: "bà", pack: "x1", decoys: ["爷", "斧", "巴"] },
