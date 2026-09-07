@@ -951,3 +951,109 @@ h2 {
   70% { transform: scale(1.15); }
   100% { transform: scale(1); opacity: 1; }
 }
+
+/* ---------- 找茬捉迷藏 & 拖拽喂食 ---------- */
+.mode-hint {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--muted);
+  text-align: center;
+}
+
+.imposter-options {
+  grid-template-columns: repeat(4, 1fr);
+  max-width: 560px;
+}
+
+.imposter-options .card {
+  min-height: 104px;
+}
+
+.imposter-options .hanzi {
+  font-size: clamp(40px, 11vw, 72px);
+}
+
+.drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 190px;
+  height: 190px;
+  border: 4px dashed #d9b98a;
+  border-radius: 36px;
+  background: #fff8ea;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.drop-zone.eaten {
+  background: var(--soft-green);
+  border-color: var(--green);
+  animation: pop-in 0.35s ease;
+}
+
+.drop-emoji {
+  font-size: 76px;
+  line-height: 1;
+}
+
+.drop-label {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.feed-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.feed-card {
+  min-height: 96px;
+  border: none;
+  border-radius: 22px;
+  background: var(--card);
+  box-shadow: 0 6px 16px rgba(122, 74, 31, 0.1);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  transition: box-shadow 0.1s ease;
+}
+
+.feed-card.dragging {
+  z-index: 20;
+  cursor: grabbing;
+  box-shadow: 0 16px 30px rgba(122, 74, 31, 0.25);
+}
+
+.feed-card.card-correct,
+.feed-card.card-wrong {
+  outline-width: 4px;
+  cursor: default;
+}
+
+.feed-card .hanzi {
+  font-size: clamp(46px, 12vw, 72px);
+}
+
+@media (max-width: 420px) {
+  .imposter-options {
+    gap: 8px;
+  }
+  .drop-zone {
+    width: 160px;
+    height: 160px;
+  }
+  .drop-emoji {
+    font-size: 64px;
+  }
+}

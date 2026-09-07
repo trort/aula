@@ -33,9 +33,9 @@ export function packProgress(pack: CharPack, stats: Record<string, CharStat>): n
   return sum / pack.chars.length;
 }
 
-// 渐进阈值：上一档掌握 8% 就开始少量混入下一档，60% 后基本放量
-const BLEND_START = 0.08;
-const BLEND_FULL = 0.6;
+// 渐进阈值：上一档掌握约 50% 才开始少量混入下一档，90% 后基本放量
+const BLEND_START = 0.5;
+const BLEND_FULL = 0.9;
 
 function blendFactor(prevScore: number): number {
   return clamp01((prevScore - BLEND_START) / (BLEND_FULL - BLEND_START));
@@ -113,9 +113,9 @@ export function pickLessonChars(
         // 还没开启的档位不出现；刚开启时先少量混入，再逐步放量
         weight = opened ? Math.max(0.05, learn) : 0;
       } else if (s >= 0.95) {
-        weight = 0.2; // 已掌握：复习权重
+        weight = 0.25; // 已掌握：复习权重
       } else {
-        weight = 0.2 + learn * (1 - s);
+        weight = 0.25 + learn * (1 - s);
       }
       if (weight > 0) all.push({ item: ch, weight });
     }
@@ -150,7 +150,7 @@ export function pickMathLevels<T extends string>(
         return { id, weight: opened ? Math.max(0.05, learn) : 0 };
       }
       const s = levelScores[i];
-      const weight = s >= 0.95 ? 0.2 : 0.2 + learn * (1 - s); // 已练稳：复习权重
+      const weight = s >= 0.95 ? 0.25 : 0.25 + learn * (1 - s); // 已练稳：复习权重
       return { id, weight };
     }).filter((x) => x.weight > 0);
     if (weighted.length === 0) break;

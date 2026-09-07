@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import bankJson from "../wordbank/grade1-shang-recognition.json";
+import LiteracyRunner from "./LiteracyRunner";
 import MathQuizScreen from "./MathQuizScreen";
-import { CorrectBurst, StreakToast } from "./RewardFx";
 import { CURATED } from "./data/curated";
 import { speak, speechSupported } from "./lib/audio";
-import { STICKERS, calcSessionReward, nextSticker, randomPraise } from "./lib/rewards";
-import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
+import { STICKERS, calcSessionReward, nextSticker } from "./lib/rewards";
 import {
   focusIndex,
   mastered,
@@ -19,7 +18,7 @@ import {
   MATH_LEVELS,
   buildMathQuestions,
 } from "./lib/mathgen";
-import { buildQuestions } from "./lib/quiz";
+import { buildLiteracyTasks, type Task } from "./lib/tasks";
 import {
   addSession,
   dueMs,
@@ -32,12 +31,12 @@ import {
   type AppState,
   type SessionSummary,
 } from "./lib/storage";
-import type { AnswerItem, Domain, MathAnswerItem, Question, Screen } from "./lib/types";
+import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 
 type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.22";
+const APP_VERSION = "0.23";
 
 interface LastReward {
   stars: number;
@@ -51,7 +50,7 @@ export default function App() {
   const [domain, setDomain] = useState<Domain>("literacy");
   const [state, setState] = useState<AppState>(() => loadState());
   const [questionCount, setQuestionCount] = useState(10);
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [literacyTasks, setLiteracyTasks] = useState<Task[]>([]);
   const [mathQuestions, setMathQuestions] = useState<ReturnType<typeof buildMathQuestions>>([]);
   const [lastResult, setLastResult] = useState<SessionSummary | null>(null);
   const [lastReward, setLastReward] = useState<LastReward | null>(null);
@@ -100,12 +99,12 @@ export default function App() {
 
   const startLiteracy = useCallback(() => {
     const chosen = pickLessonChars(packs, state.chars, questionCount);
-    const qs = buildQuestions(chosen, questionCount, new Set());
-    if (qs.length === 0) {
+    const tasks = buildLiteracyTasks(chosen, questionCount);
+    if (tasks.length === 0) {
       alert("暂时没有可练的字，先让孩子复习一下再开始吧。");
       return;
     }
-    setQuestions(qs);
+    setLiteracyTasks(tasks);
     setDomain("literacy");
     setScreen("quiz");
   }, [packs, state.chars, questionCount]);
@@ -271,9 +270,9 @@ export default function App() {
         onQuit={goHome}
       />
     ) : (
-      <QuizScreen
-        key={String(questions.map((q) => q.target).join(""))}
-        questions={questions}
+      <LiteracyRunner
+        key={String(literacyTasks.map((t) => t.target).join(""))}
+        tasks={literacyTasks}
         onFinish={finishSession}
         onQuit={goHome}
       />
@@ -438,160 +437,6 @@ function HomeScreen(props: {
         </button>
       </footer>
       <span className="version-tag" aria-hidden="true">v{APP_VERSION}</span>
-    </div>
-  );
-}
-
-function QuizScreen(props: {
-  questions: Question[];
-  onFinish: (summary: SessionSummary & { answers: AnswerItem[] }) => void;
-  onQuit: () => void;
-}) {
-  const [idx, setIdx] = useState(0);
-  const [picked, setPicked] = useState<string | null>(null);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [missed, setMissed] = useState<string[]>([]);
-  const [answers, setAnswers] = useState<AnswerItem[]>([]);
-  const startedAt = useMemo(() => Date.now(), []);
-  const lockRef = useRef(false);
-  const [streak, setStreak] = useState(0);
-  const [burstId, setBurstId] = useState(0);
-  const [praise, setPraise] = useState("太棒了！");
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<number | undefined>(undefined);
-  const q = props.questions[idx];
-
-  const answered = picked !== null;
-  const pickedOption = q.options.find((o) => o.ch === picked);
-  const isCorrect = answered && pickedOption?.isTarget;
-
-  useEffect(() => {
-    if (!q) return;
-    const timer = window.setTimeout(() => speak(q.target), 220);
-    return () => window.clearTimeout(timer);
-  }, [idx, q]);
-
-  if (!q) return null;
-
-  const finishOrNext = (nc: number, nm: string[], na: AnswerItem[]) => {
-    if (idx + 1 >= props.questions.length) {
-      props.onFinish({
-        at: startedAt,
-        domain: "literacy",
-        total: props.questions.length,
-        correct: nc,
-        missed: nm,
-        answers: na,
-      });
-    } else {
-      setIdx((i) => i + 1);
-      setPicked(null);
-      setToast(null);
-      lockRef.current = false;
-    }
-  };
-
-  const choose = (ch: string, isTarget: boolean) => {
-    if (lockRef.current) return;
-    lockRef.current = true;
-    setPicked(ch);
-    const nextAnswers: AnswerItem[] = [
-      ...answers,
-      { ch: q.target, ok: isTarget, decoy: isTarget ? undefined : ch },
-    ];
-    const nextCorrect = correctCount + (isTarget ? 1 : 0);
-    const nextMissed = isTarget ? missed : [...missed, q.target];
-    setAnswers(nextAnswers);
-    setCorrectCount(nextCorrect);
-    setMissed(nextMissed);
-    // 答对：短暂鼓励后自动进入下一题；答错：等孩子看完正确答案后手动继续
-    if (isTarget) {
-      const newStreak = streak + 1;
-      setStreak(newStreak);
-      setPraise(randomPraise());
-      setBurstId((id) => id + 1);
-      playCorrect(newStreak);
-      if (newStreak === 3 || newStreak === 5 || newStreak === 8) {
-        playMilestone();
-        setToast(`🔥 连对 ${newStreak} 个！+1⭐`);
-        if (toastTimer.current) window.clearTimeout(toastTimer.current);
-        toastTimer.current = window.setTimeout(() => setToast(null), 1500);
-      }
-      window.setTimeout(() => finishOrNext(nextCorrect, nextMissed, nextAnswers), 700);
-    } else {
-      playWrong();
-      setStreak(0);
-    }
-  };
-
-  const isLast = idx + 1 >= props.questions.length;
-
-  return (
-    <div className="screen quiz">
-      {isCorrect && answered && <CorrectBurst burstId={burstId} />}
-      <div className="quiz-top">
-        <button className="link" onClick={props.onQuit}>退出</button>
-        <div className="progress">
-          {Array.from({ length: props.questions.length }, (_, i) => (
-            <span
-              key={i}
-              className={i < idx ? "dot done" : i === idx ? "dot now" : "dot"}
-            />
-          ))}
-        </div>
-        <div className="streak-pill" aria-hidden="true">
-          {streak >= 2 ? `🔥 ${streak}` : ""}
-        </div>
-        <span className="counter">
-          {idx + 1}/{props.questions.length}
-        </span>
-      </div>
-
-      <div className="quiz-body">
-        <button className="btn-speaker" onClick={() => speak(q.target)} aria-label="再听一遍">
-          <span className="speaker-icon">🔊</span>
-          <span className="speaker-label">听一听</span>
-        </button>
-
-        <div className="options">
-          {q.options.map((opt) => {
-            let cls = "card";
-            if (answered) {
-              if (opt.isTarget) cls += " card-correct";
-              else if (opt.ch === picked) cls += " card-wrong";
-              else cls += " card-dim";
-            }
-            return (
-              <button
-                key={opt.ch}
-                className={cls}
-                disabled={answered}
-                onClick={() => choose(opt.ch, opt.isTarget)}
-              >
-                <span className="hanzi">{opt.ch}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {answered &&
-        (isCorrect ? (
-          <div className="feedback ok">⭐ {praise}</div>
-        ) : (
-          <div className="wrong-actions">
-            <div className="feedback no">
-              这个字是“<span className="hanzi-inline">{q.target}</span>”
-            </div>
-            <button
-              className="btn-next"
-              onClick={() => finishOrNext(correctCount, missed, answers)}
-            >
-              {isLast ? "看结果 →" : "继续 →"}
-            </button>
-          </div>
-        ))}
-      <StreakToast text={toast} />
     </div>
   );
 }
