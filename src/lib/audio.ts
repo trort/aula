@@ -1,5 +1,13 @@
 let preferredVoice: SpeechSynthesisVoice | null = null;
 let currentAudio: HTMLAudioElement | null = null;
+const voiceListeners = new Set<() => void>();
+
+export function subscribeVoices(cb: () => void): () => void {
+  voiceListeners.add(cb);
+  return () => {
+    voiceListeners.delete(cb);
+  };
+}
 
 function pickVoice(): SpeechSynthesisVoice | null {
   if (preferredVoice) return preferredVoice;
@@ -23,6 +31,7 @@ if ("speechSynthesis" in window) {
   window.speechSynthesis.onvoiceschanged = () => {
     preferredVoice = null;
     pickVoice();
+    voiceListeners.forEach((cb) => cb());
   };
 }
 
@@ -54,6 +63,17 @@ export function getVoiceDiagnostics(): VoiceDiag {
     voices,
     preferred: preferred ? preferred.name : null,
   };
+}
+
+// 手动触发一次语音列表刷新（部分浏览器需要先 speak 一次才回填列表）
+export function retriggerVoiceList(): void {
+  if (!speechSupported()) return;
+  const synth = window.speechSynthesis;
+  synth.getVoices();
+  synth.cancel();
+  const probe = new SpeechSynthesisUtterance("测");
+  probe.lang = "zh-CN";
+  synth.speak(probe);
 }
 
 function stopCurrentAudio(): void {
