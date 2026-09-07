@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import bankJson from "../wordbank/grade1-shang-recognition.json";
+import FeedSentence from "./FeedSentence";
 import LiteracyRunner from "./LiteracyRunner";
 import MathQuizScreen from "./MathQuizScreen";
 import { CURATED } from "./data/curated";
+import { assembleSentence } from "./data/sentences";
 import { speak, speechSupported } from "./lib/audio";
 import { STICKERS, calcSessionReward, nextSticker } from "./lib/rewards";
 import {
@@ -36,7 +38,7 @@ import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.26";
+const APP_VERSION = "0.27";
 
 interface LastReward {
   stars: number;
@@ -50,6 +52,7 @@ export default function App() {
   const [domain, setDomain] = useState<Domain>("literacy");
   const [state, setState] = useState<AppState>(() => loadState());
   const [literacyMode, setLiteracyMode] = useState<LiteracyMode>("audio");
+  const [feedSentence, setFeedSentence] = useState("");
   const [questionCount, setQuestionCount] = useState(10);
   const [literacyTasks, setLiteracyTasks] = useState<Task[]>([]);
   const [mathQuestions, setMathQuestions] = useState<ReturnType<typeof buildMathQuestions>>([]);
@@ -97,8 +100,22 @@ export default function App() {
     if (mathScores.length === 0) return 1;
     return mathScores.reduce((a, b) => a + b, 0) / mathScores.length;
   }, [mathScores]);
+  const masteredTotal = useMemo(
+    () =>
+      packs.reduce(
+        (acc, p) => acc + p.chars.filter((c) => mastered(state.chars[c.ch])).length,
+        0
+      ),
+    [packs, state.chars]
+  );
 
   const startLiteracy = useCallback(() => {
+    if (literacyMode === "feed") {
+      setFeedSentence(assembleSentence(questionCount));
+      setDomain("literacy");
+      setScreen("quiz");
+      return;
+    }
     const chosen = pickLessonChars(packs, state.chars, questionCount);
     const tasks = buildSessionTasks(literacyMode, chosen, questionCount);
     if (tasks.length === 0) {
@@ -247,6 +264,7 @@ export default function App() {
         }
         literacyMode={literacyMode}
         onModeChange={setLiteracyMode}
+        feedLocked={masteredTotal < 30}
         questionCount={questionCount}
         onCountChange={setQuestionCount}
         onStart={domain === "math" ? startMath : startLiteracy}
@@ -270,6 +288,13 @@ export default function App() {
         key={String(mathQuestions.length)}
         questions={mathQuestions}
         onFinish={finishMathSession}
+        onQuit={goHome}
+      />
+    ) : literacyMode === "feed" ? (
+      <FeedSentence
+        key={`feed-${feedSentence}-${questionCount}`}
+        sentence={feedSentence}
+        onFinish={finishSession}
         onQuit={goHome}
       />
     ) : (
@@ -348,6 +373,7 @@ function HomeScreen(props: {
   footerText: string;
   literacyMode: LiteracyMode;
   onModeChange: (m: LiteracyMode) => void;
+  feedLocked: boolean;
   questionCount: number;
   onCountChange: (n: number) => void;
   onStart: () => void;
@@ -432,11 +458,20 @@ function HomeScreen(props: {
               <span className="chip-desc">找出混进来的那个字</span>
             </button>
             <button
-              className={props.literacyMode === "feed" ? "chip active" : "chip"}
-              onClick={() => props.onModeChange("feed")}
+              className={
+                !props.feedLocked && props.literacyMode === "feed"
+                  ? "chip active"
+                  : "chip"
+              }
+              disabled={props.feedLocked}
+              onClick={() => {
+                if (!props.feedLocked) props.onModeChange("feed");
+              }}
             >
               <span className="chip-title">🐻 传送带喂食</span>
-              <span className="chip-desc">把动物要的字拖进嘴里</span>
+              <span className="chip-desc">
+                {props.feedLocked ? "🔒 掌握 30 个字后解锁" : "连句成关：把动物要的字按顺序喂给它"}
+              </span>
             </button>
             <button
               className={props.literacyMode === "scratch" ? "chip active" : "chip"}

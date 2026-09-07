@@ -184,6 +184,11 @@ h2 {
   background: #fff2cf;
 }
 
+.chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .chip-count {
   margin-left: 6px;
   font-size: 13px;
@@ -1223,6 +1228,14 @@ h2 {
 }
 
 /* ---------- 迷雾寻字 ---------- */
+.scratch-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+
 .scratch-grid {
   display: flex;
   justify-content: center;
@@ -1247,6 +1260,16 @@ h2 {
 
 .scratch-card .hanzi {
   font-size: 62px;
+}
+
+.scratch-card.scratch-open {
+  outline: 4px dashed var(--green);
+  cursor: grab;
+  animation: pop-in 0.25s ease;
+}
+
+.scratch-card.scratch-open .hanzi {
+  color: #3d7a29;
 }
 
 .scratch-mask {
@@ -1279,21 +1302,42 @@ h2 {
   outline: 5px solid var(--red);
 }
 
-.scratch-confirm {
+.open-tag {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 42px;
-  height: 42px;
-  border: none;
-  border-radius: 50%;
-  background: var(--green);
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(87, 166, 61, 0.92);
   color: #fff;
-  font-size: 22px;
-  font-weight: 800;
-  z-index: 6;
-  cursor: pointer;
-  box-shadow: 0 4px 10px rgba(87, 166, 61, 0.4);
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  z-index: 7;
+}
+
+.answer-basket {
+  width: 100%;
+  max-width: 340px;
+  min-height: 92px;
+  border: 4px dashed #e8c98a;
+  border-radius: 28px;
+  background: #fff8ea;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.basket-icon {
+  font-size: 38px;
+}
+
+.basket-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: #a06b00;
 }
 
 @keyframes sparkle {

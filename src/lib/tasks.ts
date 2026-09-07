@@ -79,12 +79,13 @@ export function buildSessionTasks(
       return;
     }
     if (mode === "scratch") {
+      const decoys = pickDecoys(entry, Math.min(3, entry.decoys.length));
       tasks.push({
         kind: "scratch",
         target: entry.ch,
         options: shuffle([
           { ch: entry.ch, isTarget: true },
-          ...pickDecoys(entry, 2).map((ch) => ({ ch, isTarget: false })),
+          ...decoys.map((ch) => ({ ch, isTarget: false })),
         ]),
       });
       return;
