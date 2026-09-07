@@ -1,39 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CorrectBurst, StreakToast } from "./RewardFx";
 import { CURATED } from "./data/curated";
-import { speak, speakCharSequence } from "./lib/audio";
+import { speak, speakUnit, speakUnitSequence } from "./lib/audio";
 import { randomPraise } from "./lib/rewards";
 import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
 import type { SessionSummary } from "./lib/storage";
 import type { AnswerItem } from "./lib/types";
 
 const ZOO = ["🐻", "🐰", "🐼", "🦊", "🐵", "🐯", "🦁", "🐨"];
-const BALLOON_COLORS = [
-  "#ff8fab",
-  "#ffd166",
-  "#7bd389",
-  "#8ecae6",
-  "#c3a5ff",
-  "#ff9f6e",
-];
+const BALLOON_COLORS = ["#ff8fab", "#ffd166", "#7bd389", "#8ecae6", "#c3a5ff", "#ff9f6e"];
+const POLY_CHARS = new Set(["兴", "乐"]);
 
-function shuffle<T>(list: T[]): T[] {
-  const arr = [...list];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+interface Balloon {
+  id: number;
+  ch: string;
 }
 
 export default function FeedSentence(props: {
   sentence: string;
+  units: string[];
   onFinish: (summary: SessionSummary & { answers: AnswerItem[] }) => void;
   onQuit: () => void;
 }) {
   const chars = useMemo(() => [...props.sentence], [props.sentence]);
   const [pos, setPos] = useState(0);
-  const [last, setLast] = useState<{ ok: boolean } | null>(null);
+  const [balloons, setBalloons] = useState<Balloon[]>([]);
+  const [mood, setMood] = useState<"happy" | "sad" | null>(null);
   const [done, setDone] = useState(false);
   const [answers, setAnswers] = useState<AnswerItem[]>([]);
   const [missed, setMissed] = useState<string[]>([]);
@@ -44,34 +36,55 @@ export default function FeedSentence(props: {
   const [toast, setToast] = useState<string | null>(null);
   const startedAt = useMemo(() => Date.now(), []);
   const animal = useMemo(() => ZOO[Math.floor(Math.random() * ZOO.length)], []);
+  const idRef = useRef(0);
+  const busyRef = useRef(false);
   const toastTimer = useRef<number | undefined>(undefined);
   const finishTimer = useRef<number | undefined>(undefined);
-
   const target = chars[pos];
 
-  const balloons = useMemo(() => {
-    if (!target) return [];
-    const remaining = chars.slice(pos + 1);
-    const pool = new Set<string>([target, ...remaining.slice(0, 2)]);
-    const entry = CURATED.find((c) => c.ch === target);
-    if (entry) {
-      for (const dec of shuffle(entry.decoys)) {
-        if (pool.size >= 4) break;
-        pool.add(dec);
-      }
+  // 找到当前字所属的短语（用于整词发音）
+  const currentUnit = useMemo(() => {
+    let count = 0;
+    for (const unit of props.units) {
+      if (pos < count + unit.length) return unit;
+      count += unit.length;
     }
-    return shuffle([...pool]);
+    return "";
+  }, [props.units, pos]);
+
+  // 气球池持续保留：只补充、不清场；被点对的那只会被移除
+  useEffect(() => {
+    if (!target) return;
+    setBalloons((prev) => {
+      if (prev.some((b) => b.ch === target)) return prev;
+      const future = chars.slice(pos + 1);
+      const seen = new Set(prev.map((b) => b.ch));
+      const candidates: string[] = [];
+      for (const ch of [target, ...future, ...(CURATED.find((c) => c.ch === target)?.decoys ?? [])]) {
+        if (!seen.has(ch) && !candidates.includes(ch)) candidates.push(ch);
+        if (candidates.length >= 4) break;
+      }
+      const added = candidates.map((ch) => ({ id: ++idRef.current, ch }));
+      return [...prev, ...added];
+    });
   }, [target, chars, pos]);
 
   useEffect(() => {
-    if (!target || last || done) return;
-    const first = window.setTimeout(() => speak(target), 350);
-    const timer = window.setInterval(() => speak(target), 2600);
+    if (!target || mood || done) return;
+    const request = () => {
+      if (currentUnit && [...currentUnit].some((c) => POLY_CHARS.has(c))) {
+        speakUnit(currentUnit);
+      } else {
+        speak(target);
+      }
+    };
+    const first = window.setTimeout(request, 350);
+    const timer = window.setInterval(request, 2600);
     return () => {
       window.clearTimeout(first);
       window.clearInterval(timer);
     };
-  }, [target, last, done]);
+  }, [target, mood, done, currentUnit]);
 
   useEffect(
     () => () => {
@@ -91,39 +104,44 @@ export default function FeedSentence(props: {
     });
   };
 
-  const scheduleReadAndFinish = (
-    nc: number,
-    nm: string[],
-    na: AnswerItem[]
-  ) => {
+  const scheduleReadAndFinish = (nc: number, nm: string[], na: AnswerItem[]) => {
     setDone(true);
-    speakCharSequence(chars);
+    setBalloons([]);
+    speakUnitSequence(props.units);
     finishTimer.current = window.setTimeout(
       () => finish(nc, nm, na),
-      chars.length * 700 + 900
+      props.units.length * 1200 + 1400
     );
   };
 
-  const pick = (ch: string) => {
-    if (last || done || !target) return;
-    const ok = ch === target;
+  const tap = (balloon: Balloon) => {
+    if (busyRef.current || done || !target) return;
+    busyRef.current = true;
+    const ok = balloon.ch === target;
     const nextAnswers: AnswerItem[] = [
       ...answers,
-      { ch: target, ok, decoy: ok ? undefined : ch },
+      { ch: target, ok, decoy: ok ? undefined : balloon.ch, track: true },
     ];
     const nextCorrect = correctCount + (ok ? 1 : 0);
-    const nextMissed = ok ? missed : [...missed, target];
+    const nextMissed =
+      ok || missed.includes(target) ? missed : [...missed, target];
     setAnswers(nextAnswers);
     setCorrectCount(nextCorrect);
     setMissed(nextMissed);
-    setLast({ ok });
 
     if (!ok) {
+      setMood("sad");
       playWrong();
       setStreak(0);
+      window.setTimeout(() => {
+        setMood(null);
+        busyRef.current = false;
+      }, 900);
       return;
     }
 
+    setMood("happy");
+    setBalloons((prev) => prev.filter((b) => b.id !== balloon.id));
     const newStreak = streak + 1;
     setStreak(newStreak);
     setPraise(randomPraise());
@@ -136,25 +154,26 @@ export default function FeedSentence(props: {
       toastTimer.current = window.setTimeout(() => setToast(null), 1500);
     }
 
-    if (pos + 1 >= chars.length) {
-      scheduleReadAndFinish(nextCorrect, nextMissed, nextAnswers);
-      return;
-    }
     window.setTimeout(() => {
-      setPos((p) => p + 1);
-      setLast(null);
+      setMood(null);
+      busyRef.current = false;
+      if (pos + 1 >= chars.length) {
+        scheduleReadAndFinish(nextCorrect, nextMissed, nextAnswers);
+      } else {
+        setPos((p) => p + 1);
+      }
     }, 800);
   };
 
   const colorFor = (ch: string) =>
     BALLOON_COLORS[ch.charCodeAt(0) % BALLOON_COLORS.length];
 
-  if (!target) return null;
+  if (!target && !done) return null;
   const fedSoFar = chars.slice(0, pos).join("");
 
   return (
     <div className="screen quiz">
-      {last?.ok && <CorrectBurst burstId={burstId} />}
+      {mood === "happy" && <CorrectBurst burstId={burstId} />}
       <div className="quiz-top">
         <button className="link" onClick={props.onQuit}>退出</button>
         <div className="progress">
@@ -174,20 +193,20 @@ export default function FeedSentence(props: {
 
       <div className="quiz-body balloon-body">
         <div className="balloon-lane">
-          {balloons.map((ch, i) => (
+          {balloons.map((balloon, i) => (
             <button
-              key={`${ch}-${i}`}
+              key={balloon.id}
               className="balloon"
               style={{
                 animationDuration: `${9 + (i % 3)}s`,
                 animationDelay: `${-i * 2.4}s`,
-                top: `${20 + ((i * 16) % 40)}%`,
-                background: `radial-gradient(circle at 35% 28%, rgba(255,255,255,.75), ${colorFor(ch)})`,
+                top: `${18 + ((i * 16) % 42)}%`,
+                background: `radial-gradient(circle at 35% 28%, rgba(255,255,255,.75), ${colorFor(balloon.ch)})`,
               }}
-              onClick={() => pick(ch)}
-              disabled={!!last || done}
+              onClick={() => tap(balloon)}
+              disabled={!!mood || done}
             >
-              <span className="balloon-char">{ch}</span>
+              <span className="balloon-char">{balloon.ch}</span>
               <span className="balloon-string" />
             </button>
           ))}
@@ -197,56 +216,35 @@ export default function FeedSentence(props: {
           className={
             done
               ? "feed-mouth eaten"
-              : last
-                ? last.ok
-                  ? "feed-mouth eaten"
-                  : "feed-mouth shake"
-                : "feed-mouth"
+              : mood === "happy"
+                ? "feed-mouth happy"
+                : mood === "sad"
+                  ? "feed-mouth sad"
+                  : "feed-mouth"
           }
         >
-          {done ? (
-            <>
-              <div className="sentence-done">句子拼好啦！🎉</div>
-              <button className="speech-bubble" onClick={() => speakCharSequence(chars)}>
-                <span className="bubble-icon">🔊</span>
-                <span className="bubble-text">再读一遍</span>
-              </button>
-            </>
-          ) : (
-            <button className="speech-bubble" onClick={() => speak(target)}>
-              <span className="bubble-icon">🔊</span>
-              <span className="bubble-text">再说一遍</span>
-            </button>
-          )}
+          {done && <div className="sentence-done">句子拼好啦！🎉</div>}
+          {mood === "happy" && <span className="mood-face happy">😋</span>}
+          {mood === "sad" && <span className="mood-face sad">🙁</span>}
+          <button
+            className="speech-bubble"
+            onClick={() => {
+              if (currentUnit && [...currentUnit].some((c) => POLY_CHARS.has(c))) speakUnit(currentUnit);
+              else if (target) speak(target);
+            }}
+          >
+            <span className="bubble-icon">🔊</span>
+            <span className="bubble-text">{done ? "再读一遍" : "再说一遍"}</span>
+          </button>
           <span className="animal">{animal}</span>
           <span className="mouth-zone" aria-hidden="true" />
         </div>
       </div>
 
-      {last &&
-        !done &&
-        (last.ok ? (
-          <div className="feedback ok">⭐ {praise}</div>
-        ) : (
-          <div className="wrong-actions">
-            <div className="feedback no">“{target}”才是它要的字</div>
-            <button
-              className="btn-next"
-              onClick={() => {
-                setLast(null);
-                if (pos + 1 >= chars.length) {
-                  scheduleReadAndFinish(correctCount, missed, answers);
-                } else {
-                  setPos((p) => p + 1);
-                }
-              }}
-            >
-              {pos + 1 >= chars.length ? "听整句 →" : "继续 →"}
-            </button>
-          </div>
-        ))}
+      {mood === "happy" && !done && (
+        <div className="feedback ok">⭐ {praise}</div>
+      )}
       <StreakToast text={toast} />
     </div>
   );
 }
-

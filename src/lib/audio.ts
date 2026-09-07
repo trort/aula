@@ -152,3 +152,41 @@ export function speakCharSequence(chars: string[]): void {
   if (chars.length === 0) return;
   playCharChain(chars, 0);
 }
+
+// 播放整词音频（解决多音字需按词义发音的问题，如 高兴的“兴”）
+export function speakUnit(unit: string): void {
+  stopCurrentAudio();
+  const url = `./audio/units/${encodeURIComponent(unit)}.mp3`;
+  const audio = new Audio();
+  currentAudio = audio;
+  audio.src = url;
+  audio.preload = "auto";
+  audio.onerror = () => speakWithTTS(unit);
+  void audio.play().catch(() => speakWithTTS(unit));
+}
+
+function playUnitChain(units: string[], idx: number): void {
+  if (idx >= units.length) return;
+  const unit = units[idx];
+  const audio = new Audio();
+  currentAudio = audio;
+  audio.src = `./audio/units/${encodeURIComponent(unit)}.mp3`;
+  audio.preload = "auto";
+  audio.onended = () => {
+    if (currentAudio === audio) playUnitChain(units, idx + 1);
+  };
+  audio.onerror = () => {
+    speakWithTTS(unit);
+    playUnitChain(units, idx + 1);
+  };
+  void audio.play().catch(() => {
+    speakWithTTS(unit);
+    playUnitChain(units, idx + 1);
+  });
+}
+
+export function speakUnitSequence(units: string[]): void {
+  stopCurrentAudio();
+  if (units.length === 0) return;
+  playUnitChain(units, 0);
+}

@@ -16,6 +16,7 @@ export interface AnswerItem {
   ch: string;
   ok: boolean;
   decoy?: string;
+  track?: boolean; // false = 不计入逐字掌握进度（如纯视觉找茬）
 }
 
 export interface MathAnswerItem {

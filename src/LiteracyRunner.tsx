@@ -89,12 +89,13 @@ export default function LiteracyRunner(props: {
     if (lockRef.current) return;
     lockRef.current = true;
     setPicked(chosen);
+    const track = task.kind !== "imposter";
     const nextAnswers: AnswerItem[] = [
       ...answers,
-      { ch: task.target, ok, decoy: ok ? undefined : decoy },
+      { ch: task.target, ok, decoy: ok ? undefined : decoy, track },
     ];
     const nextCorrect = correctCount + (ok ? 1 : 0);
-    const nextMissed = ok ? missed : [...missed, task.target];
+    const nextMissed = ok || !track ? missed : [...missed, task.target];
     setAnswers(nextAnswers);
     setCorrectCount(nextCorrect);
     setMissed(nextMissed);

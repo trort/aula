@@ -43,24 +43,40 @@ function shuffle<T>(list: T[]): T[] {
   return arr;
 }
 
-/** 拼出刚好不少于 length 个字的句子串（按完整短语拼接，允许略超长度） */
-export function assembleSentence(length: number): string {
+function pickUnits(length: number): string[] {
   const units = shuffle(SENTENCE_UNITS);
-  let out = "";
+  const picked: string[] = [];
+  let total = 0;
   for (const unit of units) {
-    if (out.length >= length) break;
-    const remaining = length - out.length;
-    if (unit.length <= remaining || out.length === 0) {
-      out += unit;
+    if (total >= length) break;
+    const remaining = length - total;
+    if (unit.length <= remaining || picked.length === 0) {
+      picked.push(unit);
+      total += unit.length;
       continue;
     }
     // 剩余不足时，尝试找更短的完整句；找不到就保留这一整句
     const shorter = units.find(
-      (u) => u.length <= remaining && !out.includes(u)
+      (u) => u.length <= remaining && !picked.includes(u)
     );
-    if (shorter) out += shorter;
-    else out += unit;
+    if (shorter) {
+      picked.push(shorter);
+      total += shorter.length;
+    } else {
+      picked.push(unit);
+      total += unit.length;
+    }
   }
-  return out;
+  return picked;
 }
 
+/** 拼出不少于 length 个字的句子串（按完整短语拼接，允许略超长度） */
+export function assembleSentence(length: number): string {
+  return pickUnits(length).join("");
+}
+
+/** 同时返回句子文本与组成它的短语列表（短语语音用于多音字按词义朗读） */
+export function assembleSentencePack(length: number): { text: string; units: string[] } {
+  const units = pickUnits(length);
+  return { text: units.join(""), units };
+}

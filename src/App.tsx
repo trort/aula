@@ -4,7 +4,7 @@ import FeedSentence from "./FeedSentence";
 import LiteracyRunner from "./LiteracyRunner";
 import MathQuizScreen from "./MathQuizScreen";
 import { CURATED } from "./data/curated";
-import { assembleSentence } from "./data/sentences";
+import { assembleSentencePack } from "./data/sentences";
 import { speak, speechSupported } from "./lib/audio";
 import { STICKERS, calcSessionReward, nextSticker } from "./lib/rewards";
 import {
@@ -38,7 +38,7 @@ import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.28";
+const APP_VERSION = "0.29";
 
 interface LastReward {
   stars: number;
@@ -53,6 +53,7 @@ export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
   const [literacyMode, setLiteracyMode] = useState<LiteracyMode>("audio");
   const [feedSentence, setFeedSentence] = useState("");
+  const [feedUnits, setFeedUnits] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(10);
   const [literacyTasks, setLiteracyTasks] = useState<Task[]>([]);
   const [mathQuestions, setMathQuestions] = useState<ReturnType<typeof buildMathQuestions>>([]);
@@ -111,7 +112,9 @@ export default function App() {
 
   const startLiteracy = useCallback(() => {
     if (literacyMode === "feed") {
-      setFeedSentence(assembleSentence(questionCount));
+      const pack = assembleSentencePack(questionCount);
+      setFeedSentence(pack.text);
+      setFeedUnits(pack.units);
       setDomain("literacy");
       setScreen("quiz");
       return;
@@ -155,7 +158,9 @@ export default function App() {
           sessions: [...prev.sessions],
         };
         for (const answer of summary.answers) {
-          recordAnswer(next, answer.ch, answer.ok, answer.decoy);
+          if (answer.track !== false) {
+            recordAnswer(next, answer.ch, answer.ok, answer.decoy);
+          }
         }
         addSession(next, {
           at: summary.at,
@@ -294,6 +299,7 @@ export default function App() {
       <FeedSentence
         key={`feed-${feedSentence}-${questionCount}`}
         sentence={feedSentence}
+        units={feedUnits}
         onFinish={finishSession}
         onQuit={goHome}
       />

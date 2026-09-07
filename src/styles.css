@@ -1179,6 +1179,34 @@ h2 {
   animation: shake 0.45s ease;
 }
 
+.feed-mouth.sad {
+  animation: shake 0.5s ease;
+}
+
+.feed-mouth.happy .animal {
+  animation: happy-jump 0.5s ease;
+}
+
+@keyframes happy-jump {
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-12px) scale(1.12) rotate(-4deg); }
+  70% { transform: translateY(0) scale(1.06); }
+}
+
+.mood-face {
+  position: absolute;
+  top: 46px;
+  right: 14px;
+  font-size: 34px;
+  z-index: 5;
+  animation: pop-in 0.3s ease;
+}
+
+.mood-face.sad {
+  top: 44px;
+  right: 20px;
+}
+
 .feed-mouth.eaten .animal {
   animation: pop-in 0.4s ease;
 }
