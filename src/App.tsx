@@ -36,7 +36,7 @@ type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
 const DEFAULT_LEVELS: MathLevel[] = ["L1", "L2", "L3"];
-const APP_VERSION = "0.20";
+const APP_VERSION = "0.21";
 
 interface LastReward {
   stars: number;
