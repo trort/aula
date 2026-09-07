@@ -42,7 +42,7 @@ type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
 const DEFAULT_LEVELS: MathLevel[] = ["L1", "L2", "L3"];
-const APP_VERSION = "0.18";
+const APP_VERSION = "0.19";
 
 interface LastReward {
   stars: number;
@@ -880,7 +880,7 @@ function StatsScreen(props: {
           ) : (
             <>
               <p className="hint">
-                浏览器当前能看到的<strong>中文语音</strong>列表：
+                浏览器当前能看到的<strong>中文语音</strong>列表（系统里装过的语音不一定全部出现，通常只暴露每种语言的默认/当前语音）：
               </p>
               {diag.voices.length === 0 ? (
                 <p className="hint">还没检测到中文语音。</p>
