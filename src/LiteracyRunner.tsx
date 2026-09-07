@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import FeedBelt from "./FeedBelt";
 import ScratchCards from "./ScratchCards";
 import { CorrectBurst, StreakToast } from "./RewardFx";
-import { speak } from "./lib/audio";
+import { speak, speakWord } from "./lib/audio";
 import { randomPraise } from "./lib/rewards";
 import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
 import type { SessionSummary } from "./lib/storage";
@@ -41,7 +41,13 @@ export default function LiteracyRunner(props: {
   useEffect(() => {
     if (!task) return;
     if (task.kind !== "imposter") {
-      const timer = window.setTimeout(() => speak(task.target), 240);
+      const timer = window.setTimeout(() => {
+        if ((task.kind === "audio" || task.kind === "scratch") && task.sense) {
+          speakWord(task.sense.carrier);
+        } else {
+          speak(task.target);
+        }
+      }, 240);
       return () => window.clearTimeout(timer);
     }
   }, [idx, task]);
@@ -90,9 +96,13 @@ export default function LiteracyRunner(props: {
     lockRef.current = true;
     setPicked(chosen);
     const track = task.kind !== "imposter";
+    const itemId =
+      (task.kind === "audio" || task.kind === "scratch") && task.sense
+        ? task.sense.id
+        : task.target;
     const nextAnswers: AnswerItem[] = [
       ...answers,
-      { ch: task.target, ok, decoy: ok ? undefined : decoy, track },
+      { ch: task.target, itemId, ok, decoy: ok ? undefined : decoy, track },
     ];
     const nextCorrect = correctCount + (ok ? 1 : 0);
     const nextMissed = ok || !track ? missed : [...missed, task.target];
@@ -137,7 +147,12 @@ export default function LiteracyRunner(props: {
       <div className="quiz-body">
         {task.kind === "audio" && (
           <>
-            <button className="btn-speaker" onClick={() => speak(task.target)}>
+            <button
+              className="btn-speaker"
+              onClick={() =>
+                task.sense ? speakWord(task.sense.carrier) : speak(task.target)
+              }
+            >
               <span className="speaker-icon">🔊</span>
               <span className="speaker-label">听一听</span>
             </button>

@@ -165,6 +165,18 @@ export function speakUnit(unit: string): void {
   void audio.play().catch(() => speakWithTTS(unit));
 }
 
+// 播放承载词音频（多音字按该词发音，如“高兴”里的兴）
+export function speakWord(word: string): void {
+  stopCurrentAudio();
+  const url = `./audio/words/${encodeURIComponent(word)}.mp3`;
+  const audio = new Audio();
+  currentAudio = audio;
+  audio.src = url;
+  audio.preload = "auto";
+  audio.onerror = () => speakWithTTS(word);
+  void audio.play().catch(() => speakWithTTS(word));
+}
+
 function playUnitChain(units: string[], idx: number): void {
   if (idx >= units.length) return;
   const unit = units[idx];

@@ -1,4 +1,5 @@
 import type { Domain } from "./types";
+import { READINGS } from "../data/readings";
 
 const STORAGE_KEY = "kids-learning-companion-v1";
 
@@ -41,6 +42,17 @@ export const emptyState = (): AppState => ({
   sessions: [],
 });
 
+function migrateReadingStats(chars: Record<string, CharStat>): Record<string, CharStat> {
+  const out = { ...chars };
+  for (const reading of READINGS) {
+    if (out[reading.ch] && !out[reading.id]) {
+      out[reading.id] = out[reading.ch];
+      delete out[reading.ch];
+    }
+  }
+  return out;
+}
+
 export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -51,7 +63,7 @@ export function loadState(): AppState {
     if (!parsed || parsed.v !== 1 || typeof parsed.chars !== "object") return emptyState();
     return {
       v: 1,
-      chars: parsed.chars ?? {},
+      chars: migrateReadingStats(parsed.chars ?? {}),
       math: parsed.math ?? {},
       rewards: {
         stars: parsed.rewards?.stars ?? 0,
@@ -166,7 +178,7 @@ export async function importState(file: File): Promise<AppState> {
   }
   return {
     v: 1,
-    chars: parsed.chars ?? {},
+    chars: migrateReadingStats(parsed.chars ?? {}),
     math: parsed.math ?? {},
     rewards: {
       stars: parsed.rewards?.stars ?? 0,

@@ -14,6 +14,7 @@ export interface Question {
 
 export interface AnswerItem {
   ch: string;
+  itemId?: string; // 多音字按读音条目的统计 id；缺省=ch
   ok: boolean;
   decoy?: string;
   track?: boolean; // false = 不计入逐字掌握进度（如纯视觉找茬）

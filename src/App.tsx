@@ -4,12 +4,13 @@ import FeedSentence from "./FeedSentence";
 import LiteracyRunner from "./LiteracyRunner";
 import MathQuizScreen from "./MathQuizScreen";
 import { CURATED } from "./data/curated";
+import { glyphOfId, readingsFor } from "./data/readings";
 import { assembleSentencePack } from "./data/sentences";
 import { speak, speechSupported } from "./lib/audio";
 import { STICKERS, calcSessionReward, nextSticker } from "./lib/rewards";
 import {
   focusIndex,
-  mastered,
+  charMastered,
   packProgress,
   pickLessonChars,
   pickMathLevels,
@@ -38,7 +39,7 @@ import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.29";
+const APP_VERSION = "0.30";
 
 interface LastReward {
   stars: number;
@@ -104,7 +105,7 @@ export default function App() {
   const masteredTotal = useMemo(
     () =>
       packs.reduce(
-        (acc, p) => acc + p.chars.filter((c) => mastered(state.chars[c.ch])).length,
+        (acc, p) => acc + p.chars.filter((c) => charMastered(c.ch, state.chars)).length,
         0
       ),
     [packs, state.chars]
@@ -159,7 +160,7 @@ export default function App() {
         };
         for (const answer of summary.answers) {
           if (answer.track !== false) {
-            recordAnswer(next, answer.ch, answer.ok, answer.decoy);
+            recordAnswer(next, answer.itemId ?? answer.ch, answer.ok, answer.decoy);
           }
         }
         addSession(next, {
@@ -596,9 +597,9 @@ function StatsScreen(props: {
 }) {
   const [importing, setImporting] = useState(false);
   const charRows = Object.entries(props.state.chars)
-    .map(([ch, stat]) => ({ ch, stat }))
+    .map(([id, stat]) => ({ id, glyph: glyphOfId(id), stat }))
     .sort((a, b) => score(b.stat) - score(a.stat));
-  const dueChars = charRows.filter((r) => dueMs(r.stat) <= 0).map((r) => r.ch);
+  const dueChars = charRows.filter((r) => dueMs(r.stat) <= 0).map((r) => r.glyph);
 
   const mathRows = Object.entries(props.state.math)
     .map(([level, stat]) => ({ level, stat }))
@@ -623,14 +624,14 @@ function StatsScreen(props: {
           {dueChars.length === 0 && dueLevels.length === 0 && (
             <p className="hint">今天没有到期的内容，很棒！</p>
           )}
-          {dueChars.map((ch) => (
+          {dueChars.map((glyph, i) => (
             <button
-              key={ch}
+              key={`${glyph}-${i}`}
               className="mini-card"
-              onClick={() => speak(ch)}
-              aria-label={`再听一遍 ${ch}`}
+              onClick={() => speak(glyph)}
+              aria-label={`再听一遍 ${glyph}`}
             >
-              <span className="hanzi">{ch}</span>
+              <span className="hanzi">{glyph}</span>
             </button>
           ))}
           {dueLevels.map((lv) => (
@@ -660,12 +661,15 @@ function StatsScreen(props: {
       <section className="panel">
         <h2>识字 · 字表进度</h2>
         {props.packs.map((pack) => {
-          const done = pack.chars.filter((c) => mastered(props.state.chars[c.ch])).length;
+          const done = pack.chars.filter((c) => charMastered(c.ch, props.state.chars)).length;
           const total = pack.chars.length;
           const pct = total === 0 ? 100 : Math.round((done / total) * 100);
           const weak = pack.chars.filter((c) => {
-            const stat = props.state.chars[c.ch];
-            return !!stat && !mastered(stat);
+            const ids = readingsFor(c.ch);
+            const hasAny = ids.length === 0
+              ? !!props.state.chars[c.ch]
+              : ids.some((r) => props.state.chars[r.id]);
+            return hasAny && !charMastered(c.ch, props.state.chars);
           });
           return (
             <div key={pack.id} className="bank-block">
@@ -729,10 +733,13 @@ function StatsScreen(props: {
             <p className="hint">练过之后这里会出现每个字的掌握情况。</p>
           ) : (
             <div className="char-table">
-              {charRows.map(({ ch, stat }) => (
-                <div key={ch} className="char-row">
-                  <span className="hanzi">{ch}</span>
-                  <span className="nums">{stat.right} 对 / {stat.wrong} 错 · 连对 {stat.streak}</span>
+              {charRows.map(({ id, glyph, stat }) => (
+                <div key={id} className="char-row">
+                  <span className="hanzi">{glyph}</span>
+                  <span className="nums">
+                    {stat.right} 对 / {stat.wrong} 错 · 连对 {stat.streak}
+                    {id.includes(":") ? ` · ${id.split(":")[1]}` : ""}
+                  </span>
                   {Object.entries(stat.confusion).length > 0 && (
                     <span className="confusion">
                       常错：{Object.entries(stat.confusion).sort((a, b) => b[1] - a[1])[0][0]}

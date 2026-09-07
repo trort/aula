@@ -1,4 +1,5 @@
 import type { CuratedChar } from "../data/curated";
+import { readingsFor } from "../data/readings";
 
 export type LiteracyMode = "audio" | "imposter" | "feed" | "scratch";
 
@@ -6,6 +7,7 @@ export type Task =
   | {
       kind: "audio";
       target: string;
+      sense?: { id: string; carrier: string };
       options: Array<{ ch: string; isTarget: boolean }>;
     }
   | {
@@ -23,6 +25,7 @@ export type Task =
   | {
       kind: "scratch";
       target: string;
+      sense?: { id: string; carrier: string };
       options: Array<{ ch: string; isTarget: boolean }>;
     };
 
@@ -39,6 +42,12 @@ function shuffle<T>(list: T[]): T[] {
 
 function pickDecoys(entry: CuratedChar, count: number): string[] {
   return shuffle(entry.decoys).slice(0, count);
+}
+
+function pickReading(ch: string): { id: string; carrier: string } | undefined {
+  const list = readingsFor(ch);
+  if (list.length === 0) return undefined;
+  return list[Math.floor(Math.random() * list.length)];
 }
 
 /** 一整局只玩一种玩法；字符由自动进阶引擎选出 */
@@ -83,6 +92,7 @@ export function buildSessionTasks(
       tasks.push({
         kind: "scratch",
         target: entry.ch,
+        sense: pickReading(entry.ch),
         options: shuffle([
           { ch: entry.ch, isTarget: true },
           ...decoys.map((ch) => ({ ch, isTarget: false })),
@@ -94,6 +104,7 @@ export function buildSessionTasks(
     tasks.push({
       kind: "audio",
       target: entry.ch,
+      sense: pickReading(entry.ch),
       options: shuffle([
         { ch: entry.ch, isTarget: true },
         ...pickDecoys(entry, 2).map((ch) => ({ ch, isTarget: false })),

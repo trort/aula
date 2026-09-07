@@ -1,4 +1,5 @@
 import type { CuratedChar } from "../data/curated";
+import { readingsFor } from "../data/readings";
 import { dueMs, type CharStat } from "./storage";
 
 export interface CharPack {
@@ -21,6 +22,36 @@ export function mastered(stat: CharStat | undefined): boolean {
   );
 }
 
+function keysFor(ch: string): string[] {
+  const readings = readingsFor(ch);
+  return readings.length === 0 ? [ch] : readings.map((r) => r.id);
+}
+
+// 一个字的所有读音条目都掌握，才算这个字掌握
+export function charMastered(
+  ch: string,
+  stats: Record<string, CharStat>
+): boolean {
+  const keys = keysFor(ch);
+  return keys.every((k) => mastered(stats[k]));
+}
+
+export function charScore(
+  ch: string,
+  stats: Record<string, CharStat>
+): number {
+  const keys = keysFor(ch);
+  if (keys.length === 0) return 0;
+  return Math.min(...keys.map((k) => scoreOf(stats[k])));
+}
+
+function charDue(ch: string, stats: Record<string, CharStat>): boolean {
+  return keysFor(ch).some((k) => {
+    const stat = stats[k];
+    return !!stat && dueMs(stat) <= 0;
+  });
+}
+
 // 连续掌握度 0..1：净答对 3 次视为满掌握
 export function scoreOf(stat: CharStat | undefined): number {
   if (!stat) return 0;
@@ -29,7 +60,7 @@ export function scoreOf(stat: CharStat | undefined): number {
 
 export function packProgress(pack: CharPack, stats: Record<string, CharStat>): number {
   if (pack.chars.length === 0) return 1;
-  const sum = pack.chars.reduce((acc, c) => acc + scoreOf(stats[c.ch]), 0);
+  const sum = pack.chars.reduce((acc, c) => acc + charScore(c.ch, stats), 0);
   return sum / pack.chars.length;
 }
 
@@ -102,14 +133,14 @@ export function pickLessonChars(
     const learn = pi === 0 ? 1 : blendFactor(prevScore);
     const opened = pi === 0 || prevScore > BLEND_START;
     for (const ch of pack.chars) {
-      const stat = stats[ch.ch];
-      if (stat && dueMs(stat) <= 0) {
+      if (charDue(ch.ch, stats)) {
         due.push(ch);
         continue;
       }
-      const s = scoreOf(stat);
+      const s = charScore(ch.ch, stats);
+      const anyStat = keysFor(ch.ch).some((k) => stats[k]);
       let weight: number;
-      if (!stat) {
+      if (!anyStat) {
         // 还没开启的档位不出现；刚开启时先少量混入，再逐步放量
         weight = opened ? Math.max(0.05, learn) : 0;
       } else if (s >= 0.95) {

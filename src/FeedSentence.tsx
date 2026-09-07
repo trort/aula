@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CorrectBurst, StreakToast } from "./RewardFx";
 import { CURATED } from "./data/curated";
+import { readingForUnit } from "./data/readings";
 import { speak, speakUnit, speakUnitSequence } from "./lib/audio";
 import { randomPraise } from "./lib/rewards";
 import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
@@ -118,9 +119,11 @@ export default function FeedSentence(props: {
     if (busyRef.current || done || !target) return;
     busyRef.current = true;
     const ok = balloon.ch === target;
+    const reading = readingForUnit(currentUnit, target);
+    const itemId = reading ? reading.id : target;
     const nextAnswers: AnswerItem[] = [
       ...answers,
-      { ch: target, ok, decoy: ok ? undefined : balloon.ch, track: true },
+      { ch: target, itemId, ok, decoy: ok ? undefined : balloon.ch, track: true },
     ];
     const nextCorrect = correctCount + (ok ? 1 : 0);
     const nextMissed =
