@@ -5,26 +5,16 @@ function pickVoice(): SpeechSynthesisVoice | null {
   if (preferredVoice) return preferredVoice;
   if (!("speechSynthesis" in window)) return null;
   const voices = window.speechSynthesis.getVoices();
+  const zh = voices.filter((v) => v.lang.startsWith("zh"));
+  // 优先"明确标注增强/高质量"的语音，再退到婷婷/晓晓这类常见中文女声
   const enhanced =
-    voices.find(
-      (v) =>
-        v.lang === "zh-CN" &&
-        /enhanced|增强|premium|siri|婷婷|tingting|xiaoxiao|晓晓/i.test(v.name)
-    ) ||
-    voices.find(
-      (v) =>
-        v.lang.startsWith("zh") &&
-        /enhanced|增强|premium|婷婷|tingting|xiaoxiao|晓晓|meijia|美佳/i.test(v.name)
-    );
+    zh.find((v) => /enhanced|增强|premium/i.test(v.name)) ??
+    zh.find((v) => /婷婷|ting-?ting|xiaoxiao|晓晓|meijia|美佳/i.test(v.name));
   if (enhanced) {
     preferredVoice = enhanced;
     return enhanced;
   }
-  preferredVoice =
-    voices.find((v) => v.lang === "zh-CN" && /xiaoyi|tingting|meijia|huihui/i.test(v.name)) ||
-    voices.find((v) => v.lang === "zh-CN") ||
-    voices.find((v) => v.lang.startsWith("zh")) ||
-    null;
+  preferredVoice = zh.find((v) => v.lang === "zh-CN") ?? zh[0] ?? null;
   return preferredVoice;
 }
 
@@ -38,6 +28,32 @@ if ("speechSynthesis" in window) {
 
 export function speechSupported(): boolean {
   return "speechSynthesis" in window;
+}
+
+export interface VoiceDiag {
+  supported: boolean;
+  voices: Array<{ name: string; lang: string; enhanced: boolean }>;
+  preferred: string | null;
+}
+
+export function getVoiceDiagnostics(): VoiceDiag {
+  if (!speechSupported()) {
+    return { supported: false, voices: [], preferred: null };
+  }
+  const voices = window.speechSynthesis
+    .getVoices()
+    .filter((v) => v.lang.startsWith("zh"))
+    .map((v) => ({
+      name: v.name,
+      lang: v.lang,
+      enhanced: /enhanced|增强|premium/i.test(v.name),
+    }));
+  const preferred = pickVoice();
+  return {
+    supported: true,
+    voices,
+    preferred: preferred ? preferred.name : null,
+  };
 }
 
 function stopCurrentAudio(): void {
@@ -91,4 +107,3 @@ export function speak(text: string): void {
   }
   speakWithTTS(text);
 }
-
