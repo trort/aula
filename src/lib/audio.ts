@@ -14,15 +14,18 @@ function pickVoice(): SpeechSynthesisVoice | null {
   if (!("speechSynthesis" in window)) return null;
   const voices = window.speechSynthesis.getVoices();
   const zh = voices.filter((v) => v.lang.startsWith("zh"));
-  // 优先"明确标注增强/高质量"的语音，再退到婷婷/晓晓这类常见中文女声
+  // 大陆普通话（zh-CN）优先，避免被排在列表前面的台湾/香港语音抢走
+  const cn = zh.filter((v) => v.lang === "zh-CN");
+  const otherZh = zh.filter((v) => v.lang !== "zh-CN");
+  const orderedZh = [...cn, ...otherZh];
   const enhanced =
-    zh.find((v) => /enhanced|增强|premium/i.test(v.name)) ??
-    zh.find((v) => /婷婷|ting-?ting|xiaoxiao|晓晓|meijia|美佳/i.test(v.name));
+    orderedZh.find((v) => /enhanced|增强|premium/i.test(v.name)) ??
+    orderedZh.find((v) => /婷婷|ting-?ting|xiaoxiao|晓晓|meijia|美佳/i.test(v.name));
   if (enhanced) {
     preferredVoice = enhanced;
     return enhanced;
   }
-  preferredVoice = zh.find((v) => v.lang === "zh-CN") ?? zh[0] ?? null;
+  preferredVoice = cn[0] ?? otherZh[0] ?? null;
   return preferredVoice;
 }
 
