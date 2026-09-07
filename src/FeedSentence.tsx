@@ -107,6 +107,7 @@ export default function FeedSentence(props: {
 
   const scheduleReadAndFinish = (nc: number, nm: string[], na: AnswerItem[]) => {
     setDone(true);
+    setPos(chars.length);
     setBalloons([]);
     speakUnitSequence(props.units);
     finishTimer.current = window.setTimeout(
@@ -172,15 +173,16 @@ export default function FeedSentence(props: {
     BALLOON_COLORS[ch.charCodeAt(0) % BALLOON_COLORS.length];
 
   if (!target && !done) return null;
+  const displayPos = done ? chars.length : pos;
   const segments: string[] = [];
   {
     let cursor = 0;
     for (const unit of props.units) {
-      const end = Math.min(pos, cursor + unit.length);
+      const end = Math.min(displayPos, cursor + unit.length);
       const take = end - cursor;
       if (take > 0) segments.push(unit.slice(0, take));
       cursor += unit.length;
-      if (cursor >= pos) break;
+      if (cursor >= displayPos) break;
     }
   }
 
