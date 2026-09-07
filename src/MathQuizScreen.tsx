@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { CorrectBurst, StreakToast } from "./RewardFx";
-import { speak } from "./lib/audio";
+import { speakMathTokens } from "./lib/audio";
 import { fillAnswer, type MathQuestion } from "./lib/mathgen";
 import { randomPraise } from "./lib/rewards";
 import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
@@ -129,7 +129,10 @@ export default function MathQuizScreen(props: {
           {after}
         </div>
 
-        <button className="btn-speaker" onClick={() => speak(q.speakText)}>
+        <button
+          className="btn-speaker"
+          onClick={() => speakMathTokens(q.speakTokens, q.speakText)}
+        >
           <span className="speaker-icon">🔊</span>
           <span className="speaker-label">听题</span>
         </button>

@@ -26,6 +26,8 @@ export type MathKind =
   | "addBig"
   | "subBig";
 
+export type MathSpeechToken = number | "add" | "sub" | "eq" | "ask";
+
 export interface MathQuestion {
   level: MathLevel;
   kind: MathKind;
@@ -34,6 +36,27 @@ export interface MathQuestion {
   answer: number;
   text: string; // 展示用，如 "3 + 2 = ?"
   speakText: string; // TTS 用中文，如 "三加二等于几"
+  speakTokens: MathSpeechToken[]; // 晓晓本地片段顺序
+}
+
+function buildSpeakTokens(
+  kind: MathKind,
+  a: number,
+  b: number,
+  answer: number
+): MathSpeechToken[] {
+  switch (kind) {
+    case "add":
+    case "addBig":
+      return [a, "add", b, "eq", "ask"];
+    case "sub":
+    case "subBig":
+      return [a, "sub", b, "eq", "ask"];
+    case "missingAdd":
+      return ["ask", "add", b, "eq", answer + b];
+    case "missingSub":
+      return [a, "sub", "ask", "eq", a - answer];
+  }
 }
 
 const CN_DIGITS = "零一二三四五六七八九";
@@ -70,7 +93,16 @@ function makeQuestion(
   text: string,
   speakText: string
 ): MathQuestion {
-  return { level, kind, a, b, answer, text, speakText };
+  return {
+    level,
+    kind,
+    a,
+    b,
+    answer,
+    text,
+    speakText,
+    speakTokens: buildSpeakTokens(kind, a, b, answer),
+  };
 }
 
 export function genMathQuestion(level: MathLevel): MathQuestion {

@@ -3,13 +3,7 @@ import bankJson from "../wordbank/grade1-shang-recognition.json";
 import MathQuizScreen from "./MathQuizScreen";
 import { CorrectBurst, StreakToast } from "./RewardFx";
 import { CURATED } from "./data/curated";
-import {
-  getVoiceDiagnostics,
-  retriggerVoiceList,
-  speak,
-  speechSupported,
-  subscribeVoices,
-} from "./lib/audio";
+import { speak, speechSupported } from "./lib/audio";
 import { STICKERS, calcSessionReward, nextSticker, randomPraise } from "./lib/rewards";
 import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
 import {
@@ -42,7 +36,7 @@ type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
 const DEFAULT_LEVELS: MathLevel[] = ["L1", "L2", "L3"];
-const APP_VERSION = "0.19";
+const APP_VERSION = "0.20";
 
 interface LastReward {
   stars: number;
@@ -673,16 +667,6 @@ function StatsScreen(props: {
   onImport: (file: File) => void;
 }) {
   const [importing, setImporting] = useState(false);
-  const [, forceDiagRefresh] = useState(0);
-  useEffect(() => {
-    const off = subscribeVoices(() => forceDiagRefresh((t) => t + 1));
-    return off;
-  }, []);
-  const diag = getVoiceDiagnostics();
-  const redetectVoice = () => {
-    retriggerVoiceList();
-    window.setTimeout(() => forceDiagRefresh((t) => t + 1), 900);
-  };
   const charRows = Object.entries(props.state.chars)
     .map(([ch, stat]) => ({ ch, stat }))
     .sort((a, b) => score(b.stat) - score(a.stat));
@@ -869,51 +853,6 @@ function StatsScreen(props: {
               }}
             />
           </label>
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>语音诊断（家长调试）</h2>
-        <div className="voice-diag">
-          {!diag.supported ? (
-            <p className="hint">当前浏览器不支持语音合成。</p>
-          ) : (
-            <>
-              <p className="hint">
-                浏览器当前能看到的<strong>中文语音</strong>列表（系统里装过的语音不一定全部出现，通常只暴露每种语言的默认/当前语音）：
-              </p>
-              {diag.voices.length === 0 ? (
-                <p className="hint">还没检测到中文语音。</p>
-              ) : (
-                <ul className="voice-list">
-                  {diag.voices.map((v) => (
-                    <li
-                      key={`${v.name}-${v.lang}`}
-                      className={diag.preferred === v.name ? "active" : ""}
-                    >
-                      {v.name}（{v.lang}）
-                      {v.enhanced ? " ★增强" : ""}
-                      {diag.preferred === v.name ? " ← 当前选用" : ""}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="hint">
-                当前选用：{diag.preferred ?? "无"}。识字单字走内置晓晓 mp3，请用下方按钮测试系统语音。
-              </p>
-              <div className="actions">
-                <button className="btn-ghost" onClick={redetectVoice}>
-                  🔄 重新检测
-                </button>
-                <button
-                  className="btn-ghost"
-                  onClick={() => speak("三加二等于几？小朋友，请把答案打出来。")}
-                >
-                  🔊 测试系统语音
-                </button>
-              </div>
-            </>
-          )}
         </div>
       </section>
     </div>

@@ -1,13 +1,5 @@
 let preferredVoice: SpeechSynthesisVoice | null = null;
 let currentAudio: HTMLAudioElement | null = null;
-const voiceListeners = new Set<() => void>();
-
-export function subscribeVoices(cb: () => void): () => void {
-  voiceListeners.add(cb);
-  return () => {
-    voiceListeners.delete(cb);
-  };
-}
 
 function pickVoice(): SpeechSynthesisVoice | null {
   if (preferredVoice) return preferredVoice;
@@ -34,7 +26,6 @@ if ("speechSynthesis" in window) {
   window.speechSynthesis.onvoiceschanged = () => {
     preferredVoice = null;
     pickVoice();
-    voiceListeners.forEach((cb) => cb());
   };
 }
 
@@ -42,48 +33,24 @@ export function speechSupported(): boolean {
   return "speechSynthesis" in window;
 }
 
-export interface VoiceDiag {
-  supported: boolean;
-  voices: Array<{ name: string; lang: string; enhanced: boolean }>;
-  preferred: string | null;
-}
-
-export function getVoiceDiagnostics(): VoiceDiag {
-  if (!speechSupported()) {
-    return { supported: false, voices: [], preferred: null };
-  }
-  const voices = window.speechSynthesis
-    .getVoices()
-    .filter((v) => v.lang.startsWith("zh"))
-    .map((v) => ({
-      name: v.name,
-      lang: v.lang,
-      enhanced: /enhanced|增强|premium/i.test(v.name),
-    }));
-  const preferred = pickVoice();
-  return {
-    supported: true,
-    voices,
-    preferred: preferred ? preferred.name : null,
-  };
-}
-
-// 手动触发一次语音列表刷新（部分浏览器需要先 speak 一次才回填列表）
-export function retriggerVoiceList(): void {
-  if (!speechSupported()) return;
-  const synth = window.speechSynthesis;
-  synth.getVoices();
-  synth.cancel();
-  const probe = new SpeechSynthesisUtterance("测");
-  probe.lang = "zh-CN";
-  synth.speak(probe);
-}
-
 function stopCurrentAudio(): void {
   if (currentAudio) {
     currentAudio.pause();
     currentAudio = null;
   }
+}
+
+function speakWithTTS(text: string): void {
+  if (!speechSupported()) return;
+  const synth = window.speechSynthesis;
+  synth.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "zh-CN";
+  utter.rate = 0.82;
+  utter.pitch = 1.05;
+  const voice = pickVoice();
+  if (voice) utter.voice = voice;
+  synth.speak(utter);
 }
 
 // 语文：优先播放预生成的单字 mp3（晓晓神经语音），失败再回退系统 TTS
@@ -106,22 +73,9 @@ async function playLocalChar(ch: string): Promise<boolean> {
   }
 }
 
-function speakWithTTS(text: string): void {
-  if (!speechSupported()) return;
-  const synth = window.speechSynthesis;
-  synth.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "zh-CN";
-  utter.rate = 0.82;
-  utter.pitch = 1.05;
-  const voice = pickVoice();
-  if (voice) utter.voice = voice;
-  synth.speak(utter);
-}
-
 export function speak(text: string): void {
   stopCurrentAudio();
-  // 单个汉字优先用本地高品质配音；多字文本（数学题/短语）走系统 TTS
+  // 单个汉字优先用本地高品质配音；多字文本走系统 TTS
   if (/^[\u4e00-\u9fff]$/.test(text)) {
     void playLocalChar(text).then((played) => {
       if (!played) speakWithTTS(text);
@@ -130,3 +84,44 @@ export function speak(text: string): void {
   }
   speakWithTTS(text);
 }
+
+// 数学：晓晓预生成片段按顺序拼接（数字 0-99 + 加/减/等于/几），不依赖系统语音
+export type MathSpeechToken = number | "add" | "sub" | "eq" | "ask";
+
+function playMathChain(
+  tokens: MathSpeechToken[],
+  idx: number,
+  fallbackText: string
+): void {
+  if (idx >= tokens.length) return;
+  const token = tokens[idx];
+  const url = `./audio/math/${token}.mp3`;
+  const audio = new Audio();
+  currentAudio = audio;
+  audio.src = url;
+  audio.preload = "auto";
+  audio.onended = () => {
+    if (currentAudio === audio) playMathChain(tokens, idx + 1, fallbackText);
+  };
+  audio.onerror = () => {
+    stopCurrentAudio();
+    speakWithTTS(fallbackText);
+  };
+  void audio.play().catch(() => {
+    stopCurrentAudio();
+    speakWithTTS(fallbackText);
+  });
+}
+
+export function speakMathTokens(
+  tokens: MathSpeechToken[],
+  fallbackText: string
+): void {
+  stopCurrentAudio();
+  if (tokens.length === 0) {
+    speakWithTTS(fallbackText);
+    return;
+  }
+  playMathChain(tokens, 0, fallbackText);
+}
+
