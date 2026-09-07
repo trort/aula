@@ -36,7 +36,7 @@ import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.24";
+const APP_VERSION = "0.25";
 
 interface LastReward {
   stars: number;
@@ -50,7 +50,6 @@ export default function App() {
   const [domain, setDomain] = useState<Domain>("literacy");
   const [state, setState] = useState<AppState>(() => loadState());
   const [literacyMode, setLiteracyMode] = useState<LiteracyMode>("audio");
-  const [imposterGrid, setImposterGrid] = useState<6 | 9>(9);
   const [questionCount, setQuestionCount] = useState(10);
   const [literacyTasks, setLiteracyTasks] = useState<Task[]>([]);
   const [mathQuestions, setMathQuestions] = useState<ReturnType<typeof buildMathQuestions>>([]);
@@ -101,7 +100,7 @@ export default function App() {
 
   const startLiteracy = useCallback(() => {
     const chosen = pickLessonChars(packs, state.chars, questionCount);
-    const tasks = buildSessionTasks(literacyMode, chosen, questionCount, imposterGrid);
+    const tasks = buildSessionTasks(literacyMode, chosen, questionCount);
     if (tasks.length === 0) {
       alert("暂时没有可练的字，先让孩子复习一下再开始吧。");
       return;
@@ -109,7 +108,7 @@ export default function App() {
     setLiteracyTasks(tasks);
     setDomain("literacy");
     setScreen("quiz");
-  }, [packs, state.chars, questionCount, literacyMode, imposterGrid]);
+  }, [packs, state.chars, questionCount, literacyMode]);
 
   const startMath = useCallback(() => {
     const pickedLevels = pickMathLevels(
@@ -248,8 +247,6 @@ export default function App() {
         }
         literacyMode={literacyMode}
         onModeChange={setLiteracyMode}
-        imposterGrid={imposterGrid}
-        onGridChange={setImposterGrid}
         questionCount={questionCount}
         onCountChange={setQuestionCount}
         onStart={domain === "math" ? startMath : startLiteracy}
@@ -351,8 +348,6 @@ function HomeScreen(props: {
   footerText: string;
   literacyMode: LiteracyMode;
   onModeChange: (m: LiteracyMode) => void;
-  imposterGrid: 6 | 9;
-  onGridChange: (g: 6 | 9) => void;
   questionCount: number;
   onCountChange: (n: number) => void;
   onStart: () => void;
@@ -436,31 +431,7 @@ function HomeScreen(props: {
               <span className="chip-title">🔍 找茬</span>
               <span className="chip-desc">找出混进来的那个字</span>
             </button>
-            <button
-              className={props.literacyMode === "feed" ? "chip active" : "chip"}
-              onClick={() => props.onModeChange("feed")}
-            >
-              <span className="chip-title">🐻 拖拽喂食</span>
-              <span className="chip-desc">把动物要的字拖给它</span>
-            </button>
           </div>
-          {props.literacyMode === "imposter" && (
-            <div className="grid-size">
-              <span className="grid-size-label">格子大小</span>
-              <button
-                className={props.imposterGrid === 6 ? "chip active" : "chip"}
-                onClick={() => props.onGridChange(6)}
-              >
-                3×2（6 张）
-              </button>
-              <button
-                className={props.imposterGrid === 9 ? "chip active" : "chip"}
-                onClick={() => props.onGridChange(9)}
-              >
-                3×3（9 张）
-              </button>
-            </div>
-          )}
         </section>
       )}
 
