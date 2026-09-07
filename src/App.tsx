@@ -36,7 +36,7 @@ import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.25";
+const APP_VERSION = "0.26";
 
 interface LastReward {
   stars: number;
@@ -430,6 +430,20 @@ function HomeScreen(props: {
             >
               <span className="chip-title">🔍 找茬</span>
               <span className="chip-desc">找出混进来的那个字</span>
+            </button>
+            <button
+              className={props.literacyMode === "feed" ? "chip active" : "chip"}
+              onClick={() => props.onModeChange("feed")}
+            >
+              <span className="chip-title">🐻 传送带喂食</span>
+              <span className="chip-desc">把动物要的字拖进嘴里</span>
+            </button>
+            <button
+              className={props.literacyMode === "scratch" ? "chip active" : "chip"}
+              onClick={() => props.onModeChange("scratch")}
+            >
+              <span className="chip-title">🕯️ 迷雾寻字</span>
+              <span className="chip-desc">刮开迷雾，找出听到的字</span>
             </button>
           </div>
         </section>

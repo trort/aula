@@ -1,6 +1,6 @@
 import type { CuratedChar } from "../data/curated";
 
-export type LiteracyMode = "audio" | "imposter" | "feed";
+export type LiteracyMode = "audio" | "imposter" | "feed" | "scratch";
 
 export type Task =
   | {
@@ -18,6 +18,11 @@ export type Task =
       kind: "feed";
       target: string;
       animal: string;
+      options: Array<{ ch: string; isTarget: boolean }>;
+    }
+  | {
+      kind: "scratch";
+      target: string;
       options: Array<{ ch: string; isTarget: boolean }>;
     };
 
@@ -61,10 +66,22 @@ export function buildSessionTasks(
       return;
     }
     if (mode === "feed") {
+      const decoys = pickDecoys(entry, Math.min(3, entry.decoys.length));
       tasks.push({
         kind: "feed",
         target: entry.ch,
         animal: ZOO[Math.floor(Math.random() * ZOO.length)],
+        options: shuffle([
+          { ch: entry.ch, isTarget: true },
+          ...decoys.map((ch) => ({ ch, isTarget: false })),
+        ]),
+      });
+      return;
+    }
+    if (mode === "scratch") {
+      tasks.push({
+        kind: "scratch",
+        target: entry.ch,
         options: shuffle([
           { ch: entry.ch, isTarget: true },
           ...pickDecoys(entry, 2).map((ch) => ({ ch, isTarget: false })),
@@ -84,4 +101,3 @@ export function buildSessionTasks(
   });
   return tasks.slice(0, size);
 }
-

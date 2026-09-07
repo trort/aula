@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import FeedBelt from "./FeedBelt";
+import ScratchCards from "./ScratchCards";
 import { CorrectBurst, StreakToast } from "./RewardFx";
 import { speak } from "./lib/audio";
 import { randomPraise } from "./lib/rewards";
@@ -37,11 +38,6 @@ export default function LiteracyRunner(props: {
     return picked === task.target;
   })();
 
-  // 拖拽状态
-  const dragRef = useRef<{ ch: string; startX: number; startY: number; dx: number; dy: number } | null>(null);
-  const [, forceDrag] = useState(0);
-  const dropRef = useRef<HTMLDivElement | null>(null);
-
   useEffect(() => {
     if (!task) return;
     if (task.kind !== "imposter") {
@@ -66,7 +62,6 @@ export default function LiteracyRunner(props: {
       setIdx((i) => i + 1);
       setPicked(null);
       setToast(null);
-      dragRef.current = null;
       lockRef.current = false;
     }
   };
@@ -116,36 +111,6 @@ export default function LiteracyRunner(props: {
     if (task.kind === "feed") return `应该把“${task.target}”喂进去`;
     return `这个字是“${task.target}”`;
   })();
-
-  const onCardDown = (ch: string, e: ReactPointerEvent<HTMLButtonElement>) => {
-    if (answered || task.kind !== "feed") return;
-    dragRef.current = { ch, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0 };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    forceDrag((t) => t + 1);
-  };
-  const onCardMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    const d = dragRef.current;
-    if (!d) return;
-    d.dx = e.clientX - d.startX;
-    d.dy = e.clientY - d.startY;
-    forceDrag((t) => t + 1);
-  };
-  const onCardUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    const d = dragRef.current;
-    dragRef.current = null;
-    forceDrag((t) => t + 1);
-    if (!d) return;
-    const zone = dropRef.current?.getBoundingClientRect();
-    if (
-      zone &&
-      e.clientX >= zone.left &&
-      e.clientX <= zone.right &&
-      e.clientY >= zone.top &&
-      e.clientY <= zone.bottom
-    ) {
-      answer(d.ch, d.ch === task.target, d.ch === task.target ? undefined : d.ch);
-    }
-  };
 
   return (
     <div className="screen quiz">
@@ -226,44 +191,27 @@ export default function LiteracyRunner(props: {
 
         {task.kind === "feed" && (
           <>
-            <div className="mode-hint">小动物要这个字，把它拖给它！</div>
-            <div ref={dropRef} className={answered && isCorrect ? "drop-zone eaten" : "drop-zone"}>
-              <span className="drop-emoji">{task.animal}</span>
-              <span className="drop-label">把字拖进来</span>
-            </div>
-            <button className="btn-speaker" onClick={() => speak(task.target)}>
-              <span className="speaker-icon">🔊</span>
-              <span className="speaker-label">再听一次</span>
-            </button>
-            <div className="feed-cards">
-              {task.options.map((opt) => {
-                let cls = "feed-card";
-                if (answered) {
-                  if (opt.isTarget) cls += " card-correct";
-                  else if (opt.ch === picked) cls += " card-wrong";
-                  else cls += " card-dim";
-                }
-                const d = dragRef.current;
-                const dragging = d?.ch === opt.ch;
-                return (
-                  <button
-                    key={opt.ch}
-                    className={dragging ? `${cls} dragging` : cls}
-                    disabled={answered}
-                    style={
-                      dragging
-                        ? { transform: `translate(${d?.dx ?? 0}px, ${d?.dy ?? 0}px) scale(1.08)` }
-                        : undefined
-                    }
-                    onPointerDown={(e) => onCardDown(opt.ch, e)}
-                    onPointerMove={onCardMove}
-                    onPointerUp={onCardUp}
-                  >
-                    <span className="hanzi">{opt.ch}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <div className="mode-hint">把动物要的字拖进它嘴里</div>
+            <FeedBelt
+              key={`belt-${idx}`}
+              task={task}
+              answered={answered}
+              isCorrect={isCorrect}
+              onAnswer={(ch) => answer(ch, ch === task.target, ch === task.target ? undefined : ch)}
+            />
+          </>
+        )}
+
+        {task.kind === "scratch" && (
+          <>
+            <div className="mode-hint">刮开迷雾，找出听到的字，再点 ✓</div>
+            <ScratchCards
+              key={`scratch-${idx}`}
+              options={task.options}
+              answered={answered}
+              picked={picked}
+              onPick={(ch) => answer(ch, ch === task.target, ch === task.target ? undefined : ch)}
+            />
           </>
         )}
       </div>
