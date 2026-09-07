@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
 import { CorrectBurst, StreakToast } from "./RewardFx";
 import { CURATED } from "./data/curated";
-import { speak } from "./lib/audio";
+import { speak, speakCharSequence } from "./lib/audio";
 import { randomPraise } from "./lib/rewards";
 import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
 import type { SessionSummary } from "./lib/storage";
 import type { AnswerItem } from "./lib/types";
 
 const ZOO = ["🐻", "🐰", "🐼", "🦊", "🐵", "🐯", "🦁", "🐨"];
+const BALLOON_COLORS = [
+  "#ff8fab",
+  "#ffd166",
+  "#7bd389",
+  "#8ecae6",
+  "#c3a5ff",
+  "#ff9f6e",
+];
 
 function shuffle<T>(list: T[]): T[] {
   const arr = [...list];
@@ -27,6 +34,7 @@ export default function FeedSentence(props: {
   const chars = useMemo(() => [...props.sentence], [props.sentence]);
   const [pos, setPos] = useState(0);
   const [last, setLast] = useState<{ ok: boolean } | null>(null);
+  const [done, setDone] = useState(false);
   const [answers, setAnswers] = useState<AnswerItem[]>([]);
   const [missed, setMissed] = useState<string[]>([]);
   const [correctCount, setCorrectCount] = useState(0);
@@ -36,13 +44,12 @@ export default function FeedSentence(props: {
   const [toast, setToast] = useState<string | null>(null);
   const startedAt = useMemo(() => Date.now(), []);
   const animal = useMemo(() => ZOO[Math.floor(Math.random() * ZOO.length)], []);
-  const mouthRef = useRef<HTMLDivElement | null>(null);
-  const drag = useRef<{ wrap: HTMLDivElement; startX: number; startY: number } | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
+  const finishTimer = useRef<number | undefined>(undefined);
 
   const target = chars[pos];
 
-  const options = useMemo(() => {
+  const balloons = useMemo(() => {
     if (!target) return [];
     const remaining = chars.slice(pos + 1);
     const pool = new Set<string>([target, ...remaining.slice(0, 2)]);
@@ -56,22 +63,24 @@ export default function FeedSentence(props: {
     return shuffle([...pool]);
   }, [target, chars, pos]);
 
-  // 每 2.4 秒自动重复要的字；答错等待时暂停
   useEffect(() => {
-    if (!target || last) return;
+    if (!target || last || done) return;
     const first = window.setTimeout(() => speak(target), 350);
-    const timer = window.setInterval(() => speak(target), 2400);
+    const timer = window.setInterval(() => speak(target), 2600);
     return () => {
       window.clearTimeout(first);
       window.clearInterval(timer);
     };
-  }, [target, last]);
+  }, [target, last, done]);
 
-  const finish = (
-    nc: number,
-    nm: string[],
-    na: AnswerItem[]
-  ) => {
+  useEffect(
+    () => () => {
+      if (finishTimer.current) window.clearTimeout(finishTimer.current);
+    },
+    []
+  );
+
+  const finish = (nc: number, nm: string[], na: AnswerItem[]) => {
     props.onFinish({
       at: startedAt,
       domain: "literacy",
@@ -82,17 +91,21 @@ export default function FeedSentence(props: {
     });
   };
 
-  const advance = (nc: number, nm: string[], na: AnswerItem[]) => {
-    setLast(null);
-    if (pos + 1 >= chars.length) {
-      finish(nc, nm, na);
-    } else {
-      setPos((p) => p + 1);
-    }
+  const scheduleReadAndFinish = (
+    nc: number,
+    nm: string[],
+    na: AnswerItem[]
+  ) => {
+    setDone(true);
+    speakCharSequence(chars);
+    finishTimer.current = window.setTimeout(
+      () => finish(nc, nm, na),
+      chars.length * 700 + 900
+    );
   };
 
-  const feed = (ch: string) => {
-    if (last || !target) return;
+  const pick = (ch: string) => {
+    if (last || done || !target) return;
     const ok = ch === target;
     const nextAnswers: AnswerItem[] = [
       ...answers,
@@ -105,58 +118,39 @@ export default function FeedSentence(props: {
     setMissed(nextMissed);
     setLast({ ok });
 
-    if (ok) {
-      const newStreak = streak + 1;
-      setStreak(newStreak);
-      setPraise(randomPraise());
-      setBurstId((id) => id + 1);
-      playCorrect(newStreak);
-      if (newStreak === 3 || newStreak === 5 || newStreak === 8) {
-        playMilestone();
-        setToast(`🔥 连对 ${newStreak} 个！+1⭐`);
-        if (toastTimer.current) window.clearTimeout(toastTimer.current);
-        toastTimer.current = window.setTimeout(() => setToast(null), 1500);
-      }
-      window.setTimeout(() => advance(nextCorrect, nextMissed, nextAnswers), 800);
-    } else {
+    if (!ok) {
       playWrong();
       setStreak(0);
+      return;
     }
+
+    const newStreak = streak + 1;
+    setStreak(newStreak);
+    setPraise(randomPraise());
+    setBurstId((id) => id + 1);
+    playCorrect(newStreak);
+    if (newStreak === 3 || newStreak === 5 || newStreak === 8) {
+      playMilestone();
+      setToast(`🔥 连对 ${newStreak} 个！+1⭐`);
+      if (toastTimer.current) window.clearTimeout(toastTimer.current);
+      toastTimer.current = window.setTimeout(() => setToast(null), 1500);
+    }
+
+    if (pos + 1 >= chars.length) {
+      scheduleReadAndFinish(nextCorrect, nextMissed, nextAnswers);
+      return;
+    }
+    window.setTimeout(() => {
+      setPos((p) => p + 1);
+      setLast(null);
+    }, 800);
   };
 
-  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (last) return;
-    const wrap = e.currentTarget;
-    drag.current = { wrap, startX: e.clientX, startY: e.clientY };
-    wrap.setPointerCapture(e.pointerId);
-    wrap.style.animationPlayState = "paused";
-    wrap.classList.add("dragging");
-  };
-  const move = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const d = drag.current;
-    if (!d) return;
-    d.wrap.style.transform = `translate(${e.clientX - d.startX}px, ${e.clientY - d.startY}px)`;
-  };
-  const up = (ch: string, e: ReactPointerEvent<HTMLDivElement>) => {
-    const d = drag.current;
-    drag.current = null;
-    if (!d) return;
-    d.wrap.style.transform = "";
-    d.wrap.classList.remove("dragging");
-    d.wrap.style.animationPlayState = "running";
-    const mouth = mouthRef.current?.getBoundingClientRect();
-    if (
-      mouth &&
-      e.clientX >= mouth.left &&
-      e.clientX <= mouth.right &&
-      e.clientY >= mouth.top &&
-      e.clientY <= mouth.bottom
-    ) {
-      feed(ch);
-    }
-  };
+  const colorFor = (ch: string) =>
+    BALLOON_COLORS[ch.charCodeAt(0) % BALLOON_COLORS.length];
 
   if (!target) return null;
+  const fedSoFar = chars.slice(0, pos).join("");
 
   return (
     <div className="screen quiz">
@@ -174,47 +168,63 @@ export default function FeedSentence(props: {
         <span className="counter">{pos + 1}/{chars.length}</span>
       </div>
 
-      <div className="quiz-body">
-        <div className="mode-hint">按顺序把字喂给它（已喂 {pos} 个）</div>
-        <div className="belt-lane">
-          {options.map((ch, i) => {
-            let cls = "belt-food";
-            if (last && ch === target) cls += " belt-correct";
-            return (
-              <div
-                key={`${ch}-${i}`}
-                className="belt-item"
-                style={{
-                  animationDuration: `${8 + (i % 3)}s`,
-                  animationDelay: `${-i * 2.2}s`,
-                  top: `${24 + ((i * 17) % 40)}%`,
-                }}
-                onPointerDown={down}
-                onPointerMove={move}
-                onPointerUp={(e) => up(ch, e)}
-              >
-                <button className={cls} tabIndex={-1}>
-                  <span className="hanzi">{ch}</span>
-                </button>
-              </div>
-            );
-          })}
+      <div className="sentence-board" aria-live="polite">
+        {fedSoFar.length > 0 ? fedSoFar : "……"}
+      </div>
+
+      <div className="quiz-body balloon-body">
+        <div className="balloon-lane">
+          {balloons.map((ch, i) => (
+            <button
+              key={`${ch}-${i}`}
+              className="balloon"
+              style={{
+                animationDuration: `${9 + (i % 3)}s`,
+                animationDelay: `${-i * 2.4}s`,
+                top: `${20 + ((i * 16) % 40)}%`,
+                background: `radial-gradient(circle at 35% 28%, rgba(255,255,255,.75), ${colorFor(ch)})`,
+              }}
+              onClick={() => pick(ch)}
+              disabled={!!last || done}
+            >
+              <span className="balloon-char">{ch}</span>
+              <span className="balloon-string" />
+            </button>
+          ))}
         </div>
 
         <div
-          ref={mouthRef}
-          className={last ? (last.ok ? "feed-mouth eaten" : "feed-mouth shake") : "feed-mouth"}
+          className={
+            done
+              ? "feed-mouth eaten"
+              : last
+                ? last.ok
+                  ? "feed-mouth eaten"
+                  : "feed-mouth shake"
+                : "feed-mouth"
+          }
         >
-          <button className="speech-bubble" onClick={() => speak(target)}>
-            <span className="bubble-icon">🔊</span>
-            <span className="bubble-text">再说一遍</span>
-          </button>
+          {done ? (
+            <>
+              <div className="sentence-done">句子拼好啦！🎉</div>
+              <button className="speech-bubble" onClick={() => speakCharSequence(chars)}>
+                <span className="bubble-icon">🔊</span>
+                <span className="bubble-text">再读一遍</span>
+              </button>
+            </>
+          ) : (
+            <button className="speech-bubble" onClick={() => speak(target)}>
+              <span className="bubble-icon">🔊</span>
+              <span className="bubble-text">再说一遍</span>
+            </button>
+          )}
           <span className="animal">{animal}</span>
           <span className="mouth-zone" aria-hidden="true" />
         </div>
       </div>
 
       {last &&
+        !done &&
         (last.ok ? (
           <div className="feedback ok">⭐ {praise}</div>
         ) : (
@@ -222,9 +232,16 @@ export default function FeedSentence(props: {
             <div className="feedback no">“{target}”才是它要的字</div>
             <button
               className="btn-next"
-              onClick={() => advance(correctCount, missed, answers)}
+              onClick={() => {
+                setLast(null);
+                if (pos + 1 >= chars.length) {
+                  scheduleReadAndFinish(correctCount, missed, answers);
+                } else {
+                  setPos((p) => p + 1);
+                }
+              }}
             >
-              {pos + 1 >= chars.length ? "看结果 →" : "继续 →"}
+              {pos + 1 >= chars.length ? "听整句 →" : "继续 →"}
             </button>
           </div>
         ))}

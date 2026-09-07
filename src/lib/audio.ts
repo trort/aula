@@ -125,3 +125,30 @@ export function speakMathTokens(
   playMathChain(tokens, 0, fallbackText);
 }
 
+// 逐个播放单字 mp3（用于小动物朗读拼好的整句）
+function playCharChain(chars: string[], idx: number): void {
+  if (idx >= chars.length) return;
+  const ch = chars[idx];
+  const url = `./audio/${encodeURIComponent(ch)}.mp3`;
+  const audio = new Audio();
+  currentAudio = audio;
+  audio.src = url;
+  audio.preload = "auto";
+  audio.onended = () => {
+    if (currentAudio === audio) playCharChain(chars, idx + 1);
+  };
+  audio.onerror = () => {
+    speakWithTTS(ch);
+    playCharChain(chars, idx + 1);
+  };
+  void audio.play().catch(() => {
+    speakWithTTS(ch);
+    playCharChain(chars, idx + 1);
+  });
+}
+
+export function speakCharSequence(chars: string[]): void {
+  stopCurrentAudio();
+  if (chars.length === 0) return;
+  playCharChain(chars, 0);
+}
