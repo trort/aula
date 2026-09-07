@@ -38,16 +38,18 @@ export default function LiteracyRunner(props: {
     return picked === task.target;
   })();
 
+  const speakPrompt = () => {
+    if ((task.kind === "audio" || task.kind === "scratch") && task.sense) {
+      speakWord(task.sense.carrier);
+    } else {
+      speak(task.target);
+    }
+  };
+
   useEffect(() => {
     if (!task) return;
     if (task.kind !== "imposter") {
-      const timer = window.setTimeout(() => {
-        if ((task.kind === "audio" || task.kind === "scratch") && task.sense) {
-          speakWord(task.sense.carrier);
-        } else {
-          speak(task.target);
-        }
-      }, 240);
+      const timer = window.setTimeout(speakPrompt, 240);
       return () => window.clearTimeout(timer);
     }
   }, [idx, task]);
@@ -149,9 +151,7 @@ export default function LiteracyRunner(props: {
           <>
             <button
               className="btn-speaker"
-              onClick={() =>
-                task.sense ? speakWord(task.sense.carrier) : speak(task.target)
-              }
+              onClick={speakPrompt}
             >
               <span className="speaker-icon">🔊</span>
               <span className="speaker-label">听一听</span>
@@ -220,7 +220,11 @@ export default function LiteracyRunner(props: {
 
         {task.kind === "scratch" && (
           <>
-            <div className="mode-hint">刮开迷雾，找出听到的字，再点 ✓</div>
+            <div className="mode-hint">刮一刮，找到听到的字</div>
+            <button className="btn-speaker" onClick={speakPrompt}>
+              <span className="speaker-icon">🔊</span>
+              <span className="speaker-label">再听一次</span>
+            </button>
             <ScratchCards
               key={`scratch-${idx}`}
               options={task.options}

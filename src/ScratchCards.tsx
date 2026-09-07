@@ -41,7 +41,6 @@ export default function ScratchCards(props: {
   const basketRef = useRef<HTMLDivElement | null>(null);
   const revealedRef = useRef<Set<string>>(new Set());
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
-  const [toastTick, setToastTick] = useState(0);
   const stroke = useRef<{ x: number; y: number } | null>(null);
   const lastCheck = useRef(0);
   const drag = useRef<{ el: HTMLDivElement; ch: string; startX: number; startY: number } | null>(null);
@@ -104,7 +103,6 @@ export default function ScratchCards(props: {
     if (next.size !== revealedRef.current.size) {
       revealedRef.current = next;
       setRevealed(next);
-      setToastTick((t) => t + 1);
     }
   };
 
@@ -195,19 +193,13 @@ export default function ScratchCards(props: {
               onPointerUp={up}
             >
               <span className="hanzi">{opt.ch}</span>
-              {!props.answered && isOpen && <span className="board-open-tag">拖到答案筐</span>}
             </div>
           );
         })}
       </div>
-      {toastTick > 0 && !props.answered && (
-        <div key={toastTick} className="scratch-toast">🎉 刮出来啦，拖到下面答案筐里！</div>
-      )}
       <div ref={basketRef} className="answer-basket">
         <span className="basket-icon">📥</span>
-        <span className="basket-label">把字拖到这里</span>
       </div>
     </div>
   );
 }
-

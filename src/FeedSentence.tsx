@@ -172,7 +172,17 @@ export default function FeedSentence(props: {
     BALLOON_COLORS[ch.charCodeAt(0) % BALLOON_COLORS.length];
 
   if (!target && !done) return null;
-  const fedSoFar = chars.slice(0, pos).join("");
+  const segments: string[] = [];
+  {
+    let cursor = 0;
+    for (const unit of props.units) {
+      const end = Math.min(pos, cursor + unit.length);
+      const take = end - cursor;
+      if (take > 0) segments.push(unit.slice(0, take));
+      cursor += unit.length;
+      if (cursor >= pos) break;
+    }
+  }
 
   return (
     <div className="screen quiz">
@@ -191,7 +201,13 @@ export default function FeedSentence(props: {
       </div>
 
       <div className="sentence-board" aria-live="polite">
-        {fedSoFar.length > 0 ? fedSoFar : "……"}
+        {segments.length === 0 ? (
+          "……"
+        ) : (
+          segments.map((seg, i) => (
+            <span key={i} className="sentence-chip">{seg}</span>
+          ))
+        )}
       </div>
 
       <div className="quiz-body balloon-body">

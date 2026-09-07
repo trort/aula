@@ -39,7 +39,7 @@ import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 type BankJson = typeof bankJson;
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.30";
+const APP_VERSION = "0.31";
 
 interface LastReward {
   stars: number;
