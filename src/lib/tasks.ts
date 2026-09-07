@@ -1,5 +1,6 @@
-import { FEED_BY_CHAR } from "../data/feed";
 import type { CuratedChar } from "../data/curated";
+
+export type LiteracyMode = "audio" | "imposter" | "feed";
 
 export type Task =
   | {
@@ -11,15 +12,16 @@ export type Task =
       kind: "imposter";
       target: string;
       odd: string;
-      options: string[]; // 3 个 target + 1 个 odd
+      options: string[]; // N-1 个 target + 1 个 odd
     }
   | {
       kind: "feed";
       target: string;
-      emoji: string;
-      say: string;
+      animal: string;
       options: Array<{ ch: string; isTarget: boolean }>;
     };
+
+const ZOO = ["🐻", "🐰", "🐼", "🦊", "🐵", "🐯", "🦁", "🐨"];
 
 function shuffle<T>(list: T[]): T[] {
   const arr = [...list];
@@ -34,61 +36,52 @@ function pickDecoys(entry: CuratedChar, count: number): string[] {
   return shuffle(entry.decoys).slice(0, count);
 }
 
-export function buildLiteracyTasks(chars: CuratedChar[], size: number): Task[] {
+/** 一整局只玩一种玩法；字符由自动进阶引擎选出 */
+export function buildSessionTasks(
+  mode: LiteracyMode,
+  chars: CuratedChar[],
+  size: number,
+  imposterGrid: 6 | 9 = 9
+): Task[] {
   const tasks: Task[] = [];
-  chars.forEach((entry, i) => {
+  chars.forEach((entry) => {
     if (tasks.length >= size) return;
-    const mode = i % 3;
-    if (mode === 1) {
+    if (mode === "imposter") {
       const odd = pickDecoys(entry, 1)[0];
-      if (odd) {
-        tasks.push({
-          kind: "imposter",
-          target: entry.ch,
+      if (!odd) return;
+      tasks.push({
+        kind: "imposter",
+        target: entry.ch,
+        odd,
+        options: shuffle([
+          ...Array.from({ length: imposterGrid - 1 }, () => entry.ch),
           odd,
-          options: shuffle([entry.ch, entry.ch, entry.ch, odd]),
-        });
-        return;
-      }
+        ]),
+      });
+      return;
     }
-    if (mode === 2) {
-      const feed = FEED_BY_CHAR.get(entry.ch);
-      if (feed) {
-        const decoys = pickDecoys(entry, 2);
-        tasks.push({
-          kind: "feed",
-          target: entry.ch,
-          emoji: feed.emoji,
-          say: feed.say,
-          options: shuffle([
-            { ch: entry.ch, isTarget: true },
-            ...decoys.map((ch) => ({ ch, isTarget: false })),
-          ]),
-        });
-        return;
-      }
-      // 没有喂食配对时，退化为找茬，保证玩法仍然丰富
-      const odd = pickDecoys(entry, 1)[0];
-      if (odd) {
-        tasks.push({
-          kind: "imposter",
-          target: entry.ch,
-          odd,
-          options: shuffle([entry.ch, entry.ch, entry.ch, odd]),
-        });
-        return;
-      }
+    if (mode === "feed") {
+      tasks.push({
+        kind: "feed",
+        target: entry.ch,
+        animal: ZOO[Math.floor(Math.random() * ZOO.length)],
+        options: shuffle([
+          { ch: entry.ch, isTarget: true },
+          ...pickDecoys(entry, 2).map((ch) => ({ ch, isTarget: false })),
+        ]),
+      });
+      return;
     }
-    // audio（默认模式）
-    const decoys = pickDecoys(entry, 2);
+    // audio
     tasks.push({
       kind: "audio",
       target: entry.ch,
       options: shuffle([
         { ch: entry.ch, isTarget: true },
-        ...decoys.map((ch) => ({ ch, isTarget: false })),
+        ...pickDecoys(entry, 2).map((ch) => ({ ch, isTarget: false })),
       ]),
     });
   });
   return tasks.slice(0, size);
 }
+

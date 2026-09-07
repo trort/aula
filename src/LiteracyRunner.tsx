@@ -201,7 +201,7 @@ export default function LiteracyRunner(props: {
         {task.kind === "imposter" && (
           <>
             <div className="mode-hint">哪个字混进来了？👀</div>
-            <div className="options imposter-options">
+            <div className={task.options.length === 9 ? "options imposter-options nine" : "options imposter-options"}>
               {task.options.map((glyph, gi) => {
                 let cls = "card";
                 if (answered) {
@@ -226,10 +226,10 @@ export default function LiteracyRunner(props: {
 
         {task.kind === "feed" && (
           <>
-            <div className="mode-hint">把听到的字拖给{task.say}</div>
+            <div className="mode-hint">小动物要这个字，把它拖给它！</div>
             <div ref={dropRef} className={answered && isCorrect ? "drop-zone eaten" : "drop-zone"}>
-              <span className="drop-emoji">{task.emoji}</span>
-              <span className="drop-label">{task.say}</span>
+              <span className="drop-emoji">{task.animal}</span>
+              <span className="drop-label">把字拖进来</span>
             </div>
             <button className="btn-speaker" onClick={() => speak(task.target)}>
               <span className="speaker-icon">🔊</span>
