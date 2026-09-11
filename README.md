@@ -4,14 +4,17 @@
 
 设计文档：[docs/design.md](docs/design.md)
 
-一年级上册基础字表：[wordbank/grade1-shang-recognition.md](wordbank/grade1-shang-recognition.md)（另有 [JSON 数据](wordbank/grade1-shang-recognition.json)）
+加字 / 加干扰项 / 加句子的规则：[docs/content-rules.md](docs/content-rules.md)（改完跑 `npm run check:content`）
+
+字表：[wordbank/](wordbank/)（《四五快读》第一册 + 一年级上册，见 [wordbank/README.md](wordbank/README.md)）
 
 ## MVP 现状（v0.2）
 
 首页分为两个小岛：
 
-- **识字岛**：听音辨字（浏览器 TTS 朗读，三选一，干扰项为形近字）
-  - 自动进阶课程：先《识字基础》（第一单元），掌握 70% 后自动解锁《小羊上山第一级》等后续字包，无需手动选字
+- **识字岛**：四种玩法（听音选字 / 找茬 / 传送带连句 / 迷雾寻字），干扰项为形近字、且不与目标字同音
+  - 课程顺序：先《四五快读》第一册（88 字）→ 一年级上册（41 个课次）→ 家长补充字；当前包练稳后自动混入下一包，无需手动选字
+  - 一个字可能同时出现在两本书的字表里（如 大/小/人），进度按"字"共享，不会重复学
 - **数学岛**：纯规则约束即时出题（无静态题库），难度 L1–L6 可多选
   - L1 加法入门（和 ≤ 10）· L2 进位加法（凑十）· L3 减法入门
   - L4 退位减法（破十）· L5 挖空求未知数 · L6 两位数加减
@@ -20,7 +23,7 @@
 - 数据：localStorage 纯本地存储（逐字/逐难度对错、连续答对、常错干扰项、最近练习），支持 JSON 导出 / 导入（旧版数据自动兼容迁移）
 - 家长数据页：建议复习字与难度、逐项记录、备份迁移
 - PWA：manifest + Service Worker，可离线打开
-- 语音：识字第一单元 40 字使用预生成的"晓晓"神经语音 mp3（`public/audio/`），未覆盖字与数学题回退系统 TTS（iPad 建议安装"婷婷（增强）"中文语音效果更好）
+- 语音：识字全部 315 字都有预生成的"晓晓"神经语音 mp3（`public/audio/`，新增字用 `bash scripts/gen-audio.sh` 批量补），数学用另一套晓晓片段；缺文件才回退系统 TTS
 
 尚未包含：找茬模式、完整 SRS 调度、延迟权重、多孩子档案。
 

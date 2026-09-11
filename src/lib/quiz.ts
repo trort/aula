@@ -1,4 +1,5 @@
 import type { CuratedChar } from "../data/curated";
+import { pickDecoysFor } from "./decoys";
 import type { Question } from "./types";
 
 function shuffle<T>(list: T[]): T[] {
@@ -10,16 +11,13 @@ function shuffle<T>(list: T[]): T[] {
   return arr;
 }
 
-function pickDecoys(entry: CuratedChar, count: number): string[] {
-  return shuffle(entry.decoys).slice(0, count);
-}
-
 /**
  * 生成一轮题目：
  * - 到期/刚错过的字优先（各自内部随机）；
  * - 其余字随机补足；
  * - 字与字之间的顺序每次随机，相邻题不重复同一个字；
- * - 每题干扰项与选项位置也随机。
+ * - 每题干扰项与选项位置也随机；
+ * - 干扰项不与目标字同音（听音题里同音字会变成"两个都像对的"）。
  */
 export function buildQuestions(
   entries: CuratedChar[],
@@ -52,7 +50,7 @@ export function buildQuestions(
   const questions: Question[] = [];
   let prevTargetPos = -1;
   for (const source of order.slice(0, size)) {
-    const decoys = pickDecoys(source, 2);
+    const decoys = pickDecoysFor(source, 2);
     const optionChars = shuffle([source.ch, ...decoys]);
     let targetPos = optionChars.indexOf(source.ch);
     if (targetPos === prevTargetPos && pool.length > 2) {
@@ -71,4 +69,3 @@ export function buildQuestions(
   }
   return questions;
 }
-

@@ -1,5 +1,6 @@
 import type { CuratedChar } from "../data/curated";
 import { readingsFor } from "../data/readings";
+import { pickDecoysFor } from "./decoys";
 
 export type LiteracyMode = "audio" | "imposter" | "feed" | "scratch";
 
@@ -40,11 +41,14 @@ function shuffle<T>(list: T[]): T[] {
   return arr;
 }
 
-function pickDecoys(entry: CuratedChar, count: number): string[] {
+// 找茬模式不放音，只比字形：同音的干扰字（如 站/占、坐/座）照旧是好陷阱，不套用同音过滤
+function pickVisualDecoys(entry: CuratedChar, count: number): string[] {
   return shuffle(entry.decoys).slice(0, count);
 }
 
-function pickReading(ch: string): { id: string; carrier: string } | undefined {
+function pickReading(
+  ch: string
+): { id: string; carrier: string; py: string } | undefined {
   const list = readingsFor(ch);
   if (list.length === 0) return undefined;
   return list[Math.floor(Math.random() * list.length)];
@@ -61,7 +65,7 @@ export function buildSessionTasks(
   chars.forEach((entry) => {
     if (tasks.length >= size) return;
     if (mode === "imposter") {
-      const odd = pickDecoys(entry, 1)[0];
+      const odd = pickVisualDecoys(entry, 1)[0];
       if (!odd) return;
       tasks.push({
         kind: "imposter",
@@ -75,7 +79,8 @@ export function buildSessionTasks(
       return;
     }
     if (mode === "feed") {
-      const decoys = pickDecoys(entry, Math.min(3, entry.decoys.length));
+      // 这一支不会朗读"承载词"（题目只报字音），所以按字条默认读音过滤
+      const decoys = pickDecoysFor(entry, 3);
       tasks.push({
         kind: "feed",
         target: entry.ch,
@@ -88,11 +93,12 @@ export function buildSessionTasks(
       return;
     }
     if (mode === "scratch") {
-      const decoys = pickDecoys(entry, Math.min(3, entry.decoys.length));
+      const sense = pickReading(entry.ch);
+      const decoys = pickDecoysFor(entry, 3, { py: sense?.py });
       tasks.push({
         kind: "scratch",
         target: entry.ch,
-        sense: pickReading(entry.ch),
+        sense,
         options: shuffle([
           { ch: entry.ch, isTarget: true },
           ...decoys.map((ch) => ({ ch, isTarget: false })),
@@ -101,13 +107,17 @@ export function buildSessionTasks(
       return;
     }
     // audio
+    const sense = pickReading(entry.ch);
     tasks.push({
       kind: "audio",
       target: entry.ch,
-      sense: pickReading(entry.ch),
+      sense,
       options: shuffle([
         { ch: entry.ch, isTarget: true },
-        ...pickDecoys(entry, 2).map((ch) => ({ ch, isTarget: false })),
+        ...pickDecoysFor(entry, 2, { py: sense?.py }).map((ch) => ({
+          ch,
+          isTarget: false,
+        })),
       ]),
     });
   });

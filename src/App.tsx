@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import bankJson from "../wordbank/grade1-shang-recognition.json";
 import FeedSentence from "./FeedSentence";
 import LiteracyRunner from "./LiteracyRunner";
 import MathQuizScreen from "./MathQuizScreen";
 import { CURATED } from "./data/curated";
 import { glyphOfId, readingsFor } from "./data/readings";
 import { assembleSentencePack } from "./data/sentences";
+import { WORD_BANK_GROUPS, groupChars } from "./data/wordbank";
 import { speak, speechSupported } from "./lib/audio";
 import { STICKERS, calcSessionReward, nextSticker } from "./lib/rewards";
 import {
@@ -36,10 +36,8 @@ import {
 } from "./lib/storage";
 import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 
-type BankJson = typeof bankJson;
-
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.32";
+const APP_VERSION = "0.34";
 
 interface LastReward {
   stars: number;
@@ -65,21 +63,29 @@ export default function App() {
     persist(state);
   }, [state]);
 
-  const groups = useMemo(() => (bankJson as BankJson).groups, []);
+  const curatedByCh = useMemo(() => new Map(CURATED.map((c) => [c.ch, c])), []);
+  const groups = WORD_BANK_GROUPS;
   const selectableGroups = useMemo(
-    () => groups.filter((g) => CURATED.some((c) => c.pack === g.id)),
-    [groups]
+    () => groups.filter((g) => groupChars(g).some((ch) => curatedByCh.has(ch))),
+    [groups, curatedByCh]
   );
   const packs = useMemo<CharPack[]>(
     () =>
       selectableGroups.map((g) => ({
         id: g.id,
         title: g.title.replace(/^识字\d+ /, ""),
-        chars: CURATED.filter((c) => c.pack === g.id && c.decoys.length >= 2),
+        // 一个字可能同时出现在两本书的字表里，学习进度按"字"共享，不重复学
+        chars: groupChars(g)
+          .map((ch) => curatedByCh.get(ch))
+          .filter((c): c is (typeof CURATED)[number] => !!c && c.decoys.length >= 2),
       })),
-    [selectableGroups]
+    [selectableGroups, curatedByCh]
   );
-  const totalChars = packs.reduce((sum, p) => sum + p.chars.length, 0);
+  const courseChars = useMemo(
+    () => [...new Set(packs.flatMap((p) => p.chars.map((c) => c.ch)))],
+    [packs]
+  );
+  const totalChars = courseChars.length;
   const litPackScores = useMemo(
     () => packs.map((p) => packProgress(p, state.chars)),
     [packs, state.chars]
@@ -87,12 +93,9 @@ export default function App() {
   const litFocusIdx = useMemo(() => focusIndex(litPackScores), [litPackScores]);
   const litOverallScore = useMemo(() => {
     if (totalChars === 0) return 1;
-    const sum = packs.reduce(
-      (acc, p) => acc + p.chars.reduce((a, c) => a + scoreOf(state.chars[c.ch]), 0),
-      0
-    );
+    const sum = courseChars.reduce((acc, ch) => acc + scoreOf(state.chars[ch]), 0);
     return sum / totalChars;
-  }, [packs, state.chars, totalChars]);
+  }, [courseChars, state.chars, totalChars]);
   const mathScores = useMemo(
     () => MATH_LEVELS.map((lv) => scoreOf(state.math[lv.id])),
     [state.math]
@@ -103,12 +106,8 @@ export default function App() {
     return mathScores.reduce((a, b) => a + b, 0) / mathScores.length;
   }, [mathScores]);
   const masteredTotal = useMemo(
-    () =>
-      packs.reduce(
-        (acc, p) => acc + p.chars.filter((c) => charMastered(c.ch, state.chars)).length,
-        0
-      ),
-    [packs, state.chars]
+    () => courseChars.filter((ch) => charMastered(ch, state.chars)).length,
+    [courseChars, state.chars]
   );
 
   const startLiteracy = useCallback(() => {

@@ -127,12 +127,16 @@ export function pickLessonChars(
   const packScores = packs.map((p) => packProgress(p, stats));
   const all: Array<{ item: CuratedChar; weight: number }> = [];
   const due: CuratedChar[] = [];
+  // 同一个字可能同时出现在两本书的字表里，一轮里只出一次
+  const seen = new Set<string>();
 
   packs.forEach((pack, pi) => {
     const prevScore = pi === 0 ? 1 : packScores[pi - 1];
     const learn = pi === 0 ? 1 : blendFactor(prevScore);
     const opened = pi === 0 || prevScore > BLEND_START;
     for (const ch of pack.chars) {
+      if (seen.has(ch.ch)) continue;
+      seen.add(ch.ch);
       if (charDue(ch.ch, stats)) {
         due.push(ch);
         continue;

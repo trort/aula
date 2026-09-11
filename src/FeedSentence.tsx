@@ -3,6 +3,7 @@ import { CorrectBurst, StreakToast } from "./RewardFx";
 import { CURATED } from "./data/curated";
 import { readingForUnit } from "./data/readings";
 import { speak, speakUnit, speakUnitSequence } from "./lib/audio";
+import { pickDecoysFor } from "./lib/decoys";
 import { randomPraise } from "./lib/rewards";
 import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
 import type { SessionSummary } from "./lib/storage";
@@ -61,14 +62,19 @@ export default function FeedSentence(props: {
       const future = chars.slice(pos + 1);
       const seen = new Set(prev.map((b) => b.ch));
       const candidates: string[] = [];
-      for (const ch of [target, ...future, ...(CURATED.find((c) => c.ch === target)?.decoys ?? [])]) {
+      const entry = CURATED.find((c) => c.ch === target);
+      // 干扰气球不能和目标字同音，否则听到一个音会出现两个"好像都对"的气球
+      const decoys = entry
+        ? pickDecoysFor(entry, 3, { py: readingForUnit(currentUnit, target)?.py })
+        : [];
+      for (const ch of [target, ...future, ...decoys]) {
         if (!seen.has(ch) && !candidates.includes(ch)) candidates.push(ch);
         if (candidates.length >= 4) break;
       }
       const added = candidates.map((ch) => ({ id: ++idRef.current, ch }));
       return [...prev, ...added];
     });
-  }, [target, chars, pos]);
+  }, [target, chars, pos, currentUnit]);
 
   useEffect(() => {
     if (!target || mood || done) return;
