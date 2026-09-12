@@ -22,10 +22,13 @@ export function mastered(stat: CharStat | undefined): boolean {
   );
 }
 
-function keysFor(ch: string): string[] {
+/** 一个字对应的统计键：多音字按读音条目拆开（兴 → 兴:高兴 / 兴:兴奋） */
+export function statKeysFor(ch: string): string[] {
   const readings = readingsFor(ch);
   return readings.length === 0 ? [ch] : readings.map((r) => r.id);
 }
+
+const keysFor = statKeysFor;
 
 // 一个字的所有读音条目都掌握，才算这个字掌握
 export function charMastered(

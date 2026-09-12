@@ -688,7 +688,7 @@ h2 {
 }
 
 .math-row {
-  grid-template-columns: 96px 1fr;
+  grid-template-columns: 96px 1fr auto;
 }
 
 .level-name {
@@ -1581,4 +1581,156 @@ h2 {
   .belt-food .hanzi {
     font-size: 38px;
   }
+}
+
+/* ---------- 家长模式：验证题 + 手动改进度 ---------- */
+.gate-question {
+  font-family: var(--kai);
+  font-size: 44px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 2px;
+  margin: 18px 0 20px;
+  color: var(--ink);
+}
+
+.gate-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+.gate-input {
+  width: 150px;
+  height: 54px;
+  border: 2px solid #e2d3b6;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 26px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.gate-input:focus {
+  outline: none;
+  border-color: #e0a800;
+}
+
+.gate-btn {
+  width: auto;
+  height: 54px;
+  padding: 0 22px;
+  flex: 0 0 auto;
+}
+
+.gate-error {
+  margin-top: 12px;
+  text-align: center;
+  color: var(--red);
+  font-size: 15px;
+}
+
+.char-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mini-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid #e2d3b6;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mini-btn.active.ok {
+  background: #e9f7ec;
+  border-color: #9ed3a5;
+  color: #2f7c3f;
+}
+
+.mini-btn.active.redo {
+  background: #fdecea;
+  border-color: #f0b3ae;
+  color: #b3453c;
+}
+
+.mini-btn.wide {
+  flex: 1;
+  height: 40px;
+  font-size: 14px;
+}
+
+.edit-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.edit-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edit-bulk {
+  display: flex;
+  gap: 8px;
+}
+
+.edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 6px;
+}
+
+.edit-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 2px 5px;
+  border: 1px solid #f0e6d2;
+  border-radius: 12px;
+  background: #fffdf7;
+}
+
+.edit-cell.is-mastered {
+  background: #f2fbf3;
+  border-color: #bfe3c3;
+}
+
+.edit-cell.is-weak {
+  background: #fff7f4;
+  border-color: #f3cfc4;
+}
+
+.edit-char {
+  border: none;
+  background: none;
+  font-family: var(--kai);
+  font-size: 30px;
+  line-height: 1.15;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.edit-cell .mini-btn {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  font-size: 14px;
+  border-radius: 9px;
 }

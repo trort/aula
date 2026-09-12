@@ -146,6 +146,33 @@ export function addSession(state: AppState, summary: SessionSummary): void {
   state.sessions = state.sessions.slice(0, 200);
 }
 
+/**
+ * 家长手动标记用：已掌握 = 直接给到"练稳"的状态（4 天后再复习一次）；
+ * 没掌握 = 记为刚错，立即进入"建议今天复习"并优先出现在下一轮。
+ */
+function masteryStat(prev: CharStat | undefined, mastered: boolean): CharStat {
+  const now = Date.now();
+  if (mastered) {
+    return { right: 3, wrong: 0, streak: 3, seenAt: now, lastOk: true, confusion: {} };
+  }
+  return {
+    right: 0,
+    wrong: 1,
+    streak: 0,
+    seenAt: now,
+    lastOk: false,
+    confusion: prev?.confusion ?? {},
+  };
+}
+
+export function setCharMastery(state: AppState, key: string, mastered: boolean): void {
+  state.chars[key] = masteryStat(state.chars[key], mastered);
+}
+
+export function setMathMastery(state: AppState, level: string, mastered: boolean): void {
+  state.math[level] = masteryStat(state.math[level], mastered);
+}
+
 // 简单的抗遗忘间隔：刚错过的字立即到期；答对后按连续正确次数拉长间隔
 export function dueMs(stat: CharStat | undefined): number {
   if (!stat || !stat.seenAt) return 0;

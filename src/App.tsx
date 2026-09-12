@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import FeedSentence from "./FeedSentence";
 import LiteracyRunner from "./LiteracyRunner";
 import MathQuizScreen from "./MathQuizScreen";
+import ParentGate from "./ParentGate";
 import { CURATED } from "./data/curated";
 import { glyphOfId, readingsFor } from "./data/readings";
 import { assembleSentencePack } from "./data/sentences";
@@ -11,10 +12,12 @@ import { STICKERS, calcSessionReward, nextSticker } from "./lib/rewards";
 import {
   focusIndex,
   charMastered,
+  mastered,
   packProgress,
   pickLessonChars,
   pickMathLevels,
   scoreOf,
+  statKeysFor,
   type CharPack,
 } from "./lib/progress";
 import {
@@ -31,13 +34,15 @@ import {
   persist,
   recordAnswer,
   recordMathAnswer,
+  setCharMastery,
+  setMathMastery,
   type AppState,
   type SessionSummary,
 } from "./lib/storage";
 import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.35";
+const APP_VERSION = "0.36";
 
 interface LastReward {
   stars: number;
@@ -236,6 +241,25 @@ export default function App() {
 
   const goHome = useCallback(() => setScreen("home"), []);
 
+  // 家长手动改进度：mastered=true 标为已掌握，false 标为"没掌握、要复习"
+  const setCharsMastery = useCallback((chars: string[], isMastered: boolean) => {
+    setState((prev) => {
+      const next: AppState = { ...prev, chars: { ...prev.chars } };
+      for (const ch of chars) {
+        for (const key of statKeysFor(ch)) setCharMastery(next, key, isMastered);
+      }
+      return next;
+    });
+  }, []);
+
+  const setMathLevelMastery = useCallback((level: string, isMastered: boolean) => {
+    setState((prev) => {
+      const next: AppState = { ...prev, math: { ...prev.math } };
+      setMathMastery(next, level, isMastered);
+      return next;
+    });
+  }, []);
+
   if (screen === "home") {
     return (
       <HomeScreen
@@ -329,6 +353,8 @@ export default function App() {
       state={state}
       packs={packs}
       onBack={goHome}
+      onSetCharsMastery={setCharsMastery}
+      onSetMathMastery={setMathLevelMastery}
       onImport={async (file) => {
         try {
           const next = await importState(file);
@@ -591,24 +617,31 @@ function StatsScreen(props: {
   state: AppState;
   packs: CharPack[];
   onBack: () => void;
+  onSetCharsMastery: (chars: string[], mastered: boolean) => void;
+  onSetMathMastery: (level: string, mastered: boolean) => void;
   onExport: () => void;
   onImport: (file: File) => void;
 }) {
   const [importing, setImporting] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+  const [editPack, setEditPack] = useState<string | null>(null);
   const charRows = Object.entries(props.state.chars)
     .map(([id, stat]) => ({ id, glyph: glyphOfId(id), stat }))
     .sort((a, b) => score(b.stat) - score(a.stat));
   const dueChars = charRows.filter((r) => dueMs(r.stat) <= 0).map((r) => r.glyph);
 
-  const mathRows = Object.entries(props.state.math)
-    .map(([level, stat]) => ({ level, stat }))
-    .sort((a, b) => score(b.stat) - score(a.stat));
+  const mathRows = MATH_LEVELS.map((lv) => ({ level: lv.id, stat: props.state.math[lv.id] }));
   const dueLevels = mathRows
-    .filter((r) => dueMs(r.stat) <= 0)
+    .filter((r) => !!r.stat && dueMs(r.stat) <= 0)
     .map((r) => r.level);
   const levelLabel = (id: string) => MATH_LEVELS.find((l) => l.id === id)?.label ?? id;
 
   const litSessions = props.state.sessions.filter((s) => s.domain === "literacy");
+
+  // 家长验证题：防小朋友误点（答错就换一道新题，没法靠乱试通过）
+  if (!unlocked) {
+    return <ParentGate onPass={() => setUnlocked(true)} onBack={props.onBack} />;
+  }
 
   return (
     <div className="screen stats">
@@ -616,6 +649,11 @@ function StatsScreen(props: {
         <button className="link" onClick={props.onBack}>← 返回</button>
         <h1>家长数据</h1>
       </header>
+
+      <p className="hint">
+        家长可以手动改进度：点「✎ 手动调整这个字表」按字标 ✓（已掌握）或 ↺（没掌握，下一轮优先复习），
+        数学各难度也能单独改。改完立刻生效。
+      </p>
 
       <section className="panel">
         <h2>建议今天复习（识字 {dueChars.length} 字 · 数学 {dueLevels.length} 项）</h2>
@@ -700,6 +738,82 @@ function StatsScreen(props: {
                   </span>
                 </div>
               )}
+              <div className="edit-toolbar">
+                <button
+                  className="link"
+                  onClick={() => setEditPack(editPack === pack.id ? null : pack.id)}
+                >
+                  {editPack === pack.id ? "收起手动调整" : "✎ 手动调整这个字表"}
+                </button>
+              </div>
+              {editPack === pack.id && (
+                <div className="edit-panel">
+                  <div className="edit-bulk">
+                    <button
+                      className="mini-btn wide ok"
+                      onClick={() => props.onSetCharsMastery(pack.chars.map((c) => c.ch), true)}
+                    >
+                      整包标为已掌握 ✓
+                    </button>
+                    <button
+                      className="mini-btn wide redo"
+                      onClick={() => {
+                        if (window.confirm(`把「${pack.title}」整包标成"没掌握（要复习）"？`)) {
+                          props.onSetCharsMastery(pack.chars.map((c) => c.ch), false);
+                        }
+                      }}
+                    >
+                      整包标为要复习 ↺
+                    </button>
+                  </div>
+                  <p className="hint">
+                    点字可以再听一遍发音；✓ = 已掌握，↺ = 没掌握（下一轮优先复习）。
+                  </p>
+                  <div className="edit-grid">
+                    {pack.chars.map((c) => {
+                      const isMastered = charMastered(c.ch, props.state.chars);
+                      const practiced = statKeysFor(c.ch).some((k) => props.state.chars[k]);
+                      return (
+                        <div
+                          key={c.ch}
+                          className={
+                            "edit-cell" +
+                            (isMastered ? " is-mastered" : practiced ? " is-weak" : "")
+                          }
+                        >
+                          <button
+                            className="edit-char"
+                            onClick={() => speak(c.ch)}
+                            aria-label={`再听一遍 ${c.ch}`}
+                          >
+                            {c.ch}
+                          </button>
+                          <div className="edit-actions">
+                            <button
+                              className={"mini-btn" + (isMastered ? " active ok" : " ok")}
+                              onClick={() => props.onSetCharsMastery([c.ch], true)}
+                              aria-label={`把 ${c.ch} 标为已掌握`}
+                              title="标为已掌握"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              className={
+                                "mini-btn" + (!isMastered && practiced ? " active redo" : " redo")
+                              }
+                              onClick={() => props.onSetCharsMastery([c.ch], false)}
+                              aria-label={`把 ${c.ch} 标为没掌握`}
+                              title="标为没掌握（要复习）"
+                            >
+                              ↺
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -739,11 +853,29 @@ function StatsScreen(props: {
                     {stat.right} 对 / {stat.wrong} 错 · 连对 {stat.streak}
                     {id.includes(":") ? ` · ${id.split(":")[1]}` : ""}
                   </span>
-                  {Object.entries(stat.confusion).length > 0 && (
-                    <span className="confusion">
-                      常错：{Object.entries(stat.confusion).sort((a, b) => b[1] - a[1])[0][0]}
-                    </span>
-                  )}
+                  <span className="char-row-actions">
+                    {Object.entries(stat.confusion).length > 0 && (
+                      <span className="confusion">
+                        常错：{Object.entries(stat.confusion).sort((a, b) => b[1] - a[1])[0][0]}
+                      </span>
+                    )}
+                    <button
+                      className={"mini-btn" + (charMastered(glyph, props.state.chars) ? " active ok" : " ok")}
+                      onClick={() => props.onSetCharsMastery([glyph], true)}
+                      aria-label={`把 ${glyph} 标为已掌握`}
+                      title="标为已掌握"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      className="mini-btn redo"
+                      onClick={() => props.onSetCharsMastery([glyph], false)}
+                      aria-label={`把 ${glyph} 标为没掌握`}
+                      title="标为没掌握（要复习）"
+                    >
+                      ↺
+                    </button>
+                  </span>
                 </div>
               ))}
             </div>
@@ -751,19 +883,38 @@ function StatsScreen(props: {
         </section>
       ) : null}
 
-      {mathRows.length > 0 && (
-        <section className="panel">
-          <h2>数学 · 各难度掌握情况</h2>
-          <div className="char-table">
-            {mathRows.map(({ level, stat }) => (
-                <div key={level} className="char-row math-row">
-                  <span className="level-name">{levelLabel(level)}</span>
-                  <span className="nums">{stat.right} 对 / {stat.wrong} 错 · 连对 {stat.streak}</span>
-                </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="panel">
+        <h2>数学 · 各难度掌握情况</h2>
+        <p className="hint">✓ = 已掌握（自动进阶会跳过），↺ = 没掌握（下一轮优先练）。</p>
+        <div className="char-table">
+          {mathRows.map(({ level, stat }) => (
+            <div key={level} className="char-row math-row">
+              <span className="level-name">{levelLabel(level)}</span>
+              <span className="nums">
+                {stat ? `${stat.right} 对 / ${stat.wrong} 错 · 连对 ${stat.streak}` : "还没练过"}
+              </span>
+              <span className="char-row-actions">
+                <button
+                  className={"mini-btn" + (mastered(stat) ? " active ok" : " ok")}
+                  onClick={() => props.onSetMathMastery(level, true)}
+                  aria-label={`把 ${levelLabel(level)} 标为已掌握`}
+                  title="标为已掌握"
+                >
+                  ✓
+                </button>
+                <button
+                  className={"mini-btn" + (stat && !mastered(stat) ? " active redo" : " redo")}
+                  onClick={() => props.onSetMathMastery(level, false)}
+                  aria-label={`把 ${levelLabel(level)} 标为没掌握`}
+                  title="标为没掌握（要复习）"
+                >
+                  ↺
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="panel data-actions">
         <h2>数据备份 / 迁移</h2>
