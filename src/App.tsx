@@ -37,7 +37,7 @@ import {
 import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.34";
+const APP_VERSION = "0.35";
 
 interface LastReward {
   stars: number;
