@@ -1663,10 +1663,23 @@ h2 {
   color: #b3453c;
 }
 
+/* 回退 / 清空：不改变掌握状态，只把记录清回"没练过" */
+.mini-btn.reset {
+  border-style: dashed;
+  color: var(--muted);
+}
+
 .mini-btn.wide {
   flex: 1;
   height: 40px;
   font-size: 14px;
+}
+
+.mini-btn.wide.rollback {
+  width: 100%;
+  border-style: dashed;
+  background: #fffdf7;
+  color: var(--muted);
 }
 
 .edit-toolbar {

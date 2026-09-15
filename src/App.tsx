@@ -8,14 +8,16 @@ import { glyphOfId, readingsFor } from "./data/readings";
 import { assembleSentencePack } from "./data/sentences";
 import { WORD_BANK_GROUPS, groupChars } from "./data/wordbank";
 import { speak, speechSupported } from "./lib/audio";
+import { PACE } from "./lib/pace";
 import { STICKERS, calcSessionReward, nextSticker } from "./lib/rewards";
 import {
   focusIndex,
   charMastered,
-  mastered,
+  isSolid,
   packProgress,
   pickLessonChars,
   pickMathLevels,
+  planMath,
   scoreOf,
   statKeysFor,
   type CharPack,
@@ -34,6 +36,8 @@ import {
   persist,
   recordAnswer,
   recordMathAnswer,
+  resetCharStats,
+  resetMathStats,
   setCharMastery,
   setMathMastery,
   type AppState,
@@ -42,7 +46,7 @@ import {
 import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.36";
+const APP_VERSION = "0.38";
 
 interface LastReward {
   stars: number;
@@ -101,11 +105,13 @@ export default function App() {
     const sum = courseChars.reduce((acc, ch) => acc + scoreOf(state.chars[ch]), 0);
     return sum / totalChars;
   }, [courseChars, state.chars, totalChars]);
-  const mathScores = useMemo(
-    () => MATH_LEVELS.map((lv) => scoreOf(state.math[lv.id])),
+  // 数学进度规划（放出哪些档、当前主练哪一档）：和出题用同一个函数，避免口径不一致
+  const mathPlan = useMemo(
+    () => planMath(MATH_LEVELS.map((lv) => lv.id), state.math),
     [state.math]
   );
-  const mathFocusIdx = useMemo(() => focusIndex(mathScores), [mathScores]);
+  const mathScores = mathPlan.scores;
+  const mathFocusIdx = mathPlan.current;
   const mathOverallScore = useMemo(() => {
     if (mathScores.length === 0) return 1;
     return mathScores.reduce((a, b) => a + b, 0) / mathScores.length;
@@ -260,6 +266,25 @@ export default function App() {
     });
   }, []);
 
+  // 家长手动回退：把一批字的记录清回"没练过"（自动进阶会按分数重新排）
+  const resetChars = useCallback((chars: string[]) => {
+    setState((prev) => {
+      const next: AppState = { ...prev, chars: { ...prev.chars } };
+      const keys = new Set(chars.flatMap((ch) => statKeysFor(ch)));
+      resetCharStats(next, [...keys]);
+      return next;
+    });
+  }, []);
+
+  // 家长手动回退：把指定难度档清回"没练过"（通常传"该在的那一档 + 后面所有档"）
+  const resetMath = useCallback((levels: string[]) => {
+    setState((prev) => {
+      const next: AppState = { ...prev, math: { ...prev.math } };
+      resetMathStats(next, levels);
+      return next;
+    });
+  }, []);
+
   if (screen === "home") {
     return (
       <HomeScreen
@@ -355,6 +380,8 @@ export default function App() {
       onBack={goHome}
       onSetCharsMastery={setCharsMastery}
       onSetMathMastery={setMathLevelMastery}
+      onResetChars={resetChars}
+      onResetMath={resetMath}
       onImport={async (file) => {
         try {
           const next = await importState(file);
@@ -619,6 +646,8 @@ function StatsScreen(props: {
   onBack: () => void;
   onSetCharsMastery: (chars: string[], mastered: boolean) => void;
   onSetMathMastery: (level: string, mastered: boolean) => void;
+  onResetChars: (chars: string[]) => void;
+  onResetMath: (levels: string[]) => void;
   onExport: () => void;
   onImport: (file: File) => void;
 }) {
@@ -631,10 +660,22 @@ function StatsScreen(props: {
   const dueChars = charRows.filter((r) => dueMs(r.stat) <= 0).map((r) => r.glyph);
 
   const mathRows = MATH_LEVELS.map((lv) => ({ level: lv.id, stat: props.state.math[lv.id] }));
+  const mathPlan = planMath(MATH_LEVELS.map((lv) => lv.id), props.state.math);
+  const mathFocusIdx = mathPlan.current;
   const dueLevels = mathRows
     .filter((r) => !!r.stat && dueMs(r.stat) <= 0)
     .map((r) => r.level);
   const levelLabel = (id: string) => MATH_LEVELS.find((l) => l.id === id)?.label ?? id;
+  // 回退某个字表 = 清空它和它后面所有字表的记录（进度往回调）
+  const packCharsFrom = (packId: string): string[] => {
+    const from = props.packs.findIndex((p) => p.id === packId);
+    if (from < 0) return [];
+    return [...new Set(props.packs.slice(from).flatMap((p) => p.chars.map((c) => c.ch)))];
+  };
+  const levelsFrom = (levelId: string): string[] => {
+    const from = MATH_LEVELS.findIndex((l) => l.id === levelId);
+    return from < 0 ? [] : MATH_LEVELS.slice(from).map((l) => l.id);
+  };
 
   const litSessions = props.state.sessions.filter((s) => s.domain === "literacy");
 
@@ -651,8 +692,10 @@ function StatsScreen(props: {
       </header>
 
       <p className="hint">
-        家长可以手动改进度：点「✎ 手动调整这个字表」按字标 ✓（已掌握）或 ↺（没掌握，下一轮优先复习），
-        数学各难度也能单独改。改完立刻生效。
+        家长可以手动改进度，三种改法立刻生效：
+        <br />✓ 已掌握（只偶尔复习）· ↺ 没掌握（下一轮优先练）·
+        <br />⟲ / ⤺ <b>回退</b>：清空练习记录，回到"没练过"。
+        出题明显超前进度时（比如还没学进位加法就出了减法），用回退把进度拉回来。
       </p>
 
       <section className="panel">
@@ -697,6 +740,10 @@ function StatsScreen(props: {
 
       <section className="panel">
         <h2>识字 · 字表进度</h2>
+        <p className="hint">
+          新字节奏：开头 {PACE.literacy.bootstrapChars} 个字一次放出，之后每局最多 1 个新字
+          （按每天 30 题算约 2–3 个新字），其余题量都是复习。
+        </p>
         {props.packs.map((pack) => {
           const done = pack.chars.filter((c) => charMastered(c.ch, props.state.chars)).length;
           const total = pack.chars.length;
@@ -766,8 +813,28 @@ function StatsScreen(props: {
                       整包标为要复习 ↺
                     </button>
                   </div>
+                  <button
+                    className="mini-btn wide rollback"
+                    onClick={() => {
+                      const tail = props.packs
+                        .slice(props.packs.findIndex((p) => p.id === pack.id))
+                        .map((p) => p.title);
+                      if (
+                        window.confirm(
+                          `把「${pack.title}」及之后 ${tail.length - 1} 个字表的练习记录清空，` +
+                            `从「${pack.title}」重新练？\n\n` +
+                            `（清空后这些字都算"没练过"，后面的字表要等这一包练稳才会再混进来）`
+                        )
+                      ) {
+                        props.onResetChars(packCharsFrom(pack.id));
+                      }
+                    }}
+                  >
+                    ⤺ 回退到这个字表（清空本字表及之后）
+                  </button>
                   <p className="hint">
-                    点字可以再听一遍发音；✓ = 已掌握，↺ = 没掌握（下一轮优先复习）。
+                    点字可以再听一遍发音；✓ = 已掌握，↺ = 没掌握（下一轮优先复习），
+                    ⟲ = 清空这个字的记录（回到没练过）。
                   </p>
                   <div className="edit-grid">
                     {pack.chars.map((c) => {
@@ -806,6 +873,14 @@ function StatsScreen(props: {
                               title="标为没掌握（要复习）"
                             >
                               ↺
+                            </button>
+                            <button
+                              className="mini-btn reset"
+                              onClick={() => props.onResetChars([c.ch])}
+                              aria-label={`清空 ${c.ch} 的记录`}
+                              title="清空这个字的记录（回到没练过）"
+                            >
+                              ⟲
                             </button>
                           </div>
                         </div>
@@ -875,6 +950,14 @@ function StatsScreen(props: {
                     >
                       ↺
                     </button>
+                    <button
+                      className="mini-btn reset"
+                      onClick={() => props.onResetChars([glyph])}
+                      aria-label={`清空 ${glyph} 的记录`}
+                      title="清空记录（回到没练过）"
+                    >
+                      ⟲
+                    </button>
                   </span>
                 </div>
               ))}
@@ -885,17 +968,31 @@ function StatsScreen(props: {
 
       <section className="panel">
         <h2>数学 · 各难度掌握情况</h2>
-        <p className="hint">✓ = 已掌握（自动进阶会跳过），↺ = 没掌握（下一轮优先练）。</p>
+        <p className="hint">
+          当前重点：第 {mathFocusIdx + 1} 档 {MATH_LEVELS[mathFocusIdx].label}（自动进阶）。
+          一档练稳 ≈ {PACE.math.net} 次净答对（对 − 错）；要等这一档练满{" "}
+          {PACE.math.minDays} 天、掌握到 {Math.round(PACE.math.blendStart * 100)}%，
+          下一档才会偶尔冒出来 → 大约两周出现一个新概念，最快也要一周。
+          <br />✓ = 已掌握 · ↺ = 没掌握（下一轮优先练）·
+          ⤺ 回退 = 清空本档及之后所有档，从这一档重练。
+          <br />
+          <b>题目明显超前进度时（比如还没学加法就出了减法、两位数），就回退到该在的那一档。</b>
+        </p>
         <div className="char-table">
           {mathRows.map(({ level, stat }) => (
             <div key={level} className="char-row math-row">
               <span className="level-name">{levelLabel(level)}</span>
               <span className="nums">
-                {stat ? `${stat.right} 对 / ${stat.wrong} 错 · 连对 ${stat.streak}` : "还没练过"}
+                {stat
+                  ? `${stat.right} 对 / ${stat.wrong} 错 · 净答对 ${Math.max(
+                      0,
+                      stat.right - stat.wrong
+                    )}/${PACE.math.net}`
+                  : "还没练过"}
               </span>
               <span className="char-row-actions">
                 <button
-                  className={"mini-btn" + (mastered(stat) ? " active ok" : " ok")}
+                  className={"mini-btn" + (isSolid(stat, "math") ? " active ok" : " ok")}
                   onClick={() => props.onSetMathMastery(level, true)}
                   aria-label={`把 ${levelLabel(level)} 标为已掌握`}
                   title="标为已掌握"
@@ -903,12 +1000,33 @@ function StatsScreen(props: {
                   ✓
                 </button>
                 <button
-                  className={"mini-btn" + (stat && !mastered(stat) ? " active redo" : " redo")}
+                  className={
+                    "mini-btn" + (stat && !isSolid(stat, "math") ? " active redo" : " redo")
+                  }
                   onClick={() => props.onSetMathMastery(level, false)}
                   aria-label={`把 ${levelLabel(level)} 标为没掌握`}
                   title="标为没掌握（要复习）"
                 >
                   ↺
+                </button>
+                <button
+                  className="mini-btn reset"
+                  onClick={() => {
+                    const tail = levelsFrom(level);
+                    const names = tail.map((id) => levelLabel(id)).join("、");
+                    if (
+                      window.confirm(
+                        `把「${names}」的练习记录全部清空，从「${levelLabel(level)}」重新练？\n\n` +
+                          `（清空后这些难度都算"没练过"，要重新练稳才会再出题）`
+                      )
+                    ) {
+                      props.onResetMath(tail);
+                    }
+                  }}
+                  aria-label={`回退到 ${levelLabel(level)}`}
+                  title="回退到这一档（清空本档及之后所有档的记录）"
+                >
+                  ⤺
                 </button>
               </span>
             </div>
