@@ -180,8 +180,11 @@ for (const unit of units) {
 }
 
 // ---------- 5. 连句喂食：整个气球池里不能有目标字的同音字 ----------
-// 与 src/FeedSentence.tsx 的气球补充逻辑一致：同一轮里气球只增不减，
-// 每个新目标按 [目标, 后面的字, 安全干扰字] 最多补 4 个。
+// 与 src/FeedSentence.tsx 的补气球逻辑一致：气球池只增不减，每次按
+// [目标字 → 干扰气球（至少留 quota 只）→ 这句后面的字 → 多余干扰气球] 补满槽位。
+// App 里的槽位数随赛道宽度变化（窄屏 3、手机 4、宽屏 5），这里三种都过一遍。
+const POOL_LIMITS = [3, 4, 5];
+const decoyQuotaOf = (limit) => Math.min(3, Math.max(1, limit - 2));
 function safeDecoyPool(entry) {
   const packIdx = groupIdxOf(entry);
   const tiers = [[], [], [], []];
@@ -211,26 +214,40 @@ function safeDecoyPool(entry) {
 
 for (const unit of units) {
   const chars = [...unit];
-  let pool = [];
-  chars.forEach((target, pos) => {
-    if (!pool.includes(target)) {
-      const seen = new Set(pool);
-      const cands = [];
-      for (const ch of [target, ...chars.slice(pos + 1), ...safeDecoyPool(entryOf.get(target))]) {
-        if (!seen.has(ch) && !cands.includes(ch)) cands.push(ch);
-        if (cands.length >= 4) break;
-      }
-      pool = [...pool, ...cands];
-    }
-    const clash = pool.filter(
-      (ch) => ch !== target && sameSound(PINYIN[ch], PINYIN[target])
-    );
-    if (clash.length > 0) {
-      errors.push(
-        `短语「${unit}」第 ${pos + 1} 个字「${target}」时，气球池里还有同音气球：${clash.join(" ")}`
+  for (const limit of POOL_LIMITS) {
+    let pool = []; // { ch, decoy }
+    chars.forEach((target, pos) => {
+      const adds = [];
+      const has = (ch) =>
+        pool.some((b) => b.ch === ch) || adds.some((b) => b.ch === ch);
+      const room = () => limit - pool.length - adds.length;
+      const decoyCount = () =>
+        pool.filter((b) => b.decoy).length + adds.filter((b) => b.decoy).length;
+      const take = (list, isDecoy, enough) => {
+        for (const ch of list) {
+          if (room() <= 0 || (enough && enough())) return;
+          if (has(ch)) continue;
+          adds.push({ ch, decoy: isDecoy });
+        }
+      };
+      const decoys = safeDecoyPool(entryOf.get(target));
+      if (!has(target) && room() > 0) adds.push({ ch: target, decoy: false });
+      take(decoys, true, () => decoyCount() >= decoyQuotaOf(limit));
+      take(chars.slice(pos + 1), false);
+      take(decoys, true);
+      pool = [...pool, ...adds];
+
+      const clash = pool.filter(
+        (b) => b.ch !== target && sameSound(PINYIN[b.ch], PINYIN[target])
       );
-    }
-  });
+      if (clash.length > 0) {
+        errors.push(
+          `短语「${unit}」第 ${pos + 1} 个字「${target}」时（池子 ${limit} 只），` +
+            `气球池里还有同音气球：${clash.map((b) => b.ch).join(" ")}`
+        );
+      }
+    });
+  }
 }
 
 // ---------- 6. 听音三选一 / 迷雾四选一 是否有足够的安全干扰字 ----------

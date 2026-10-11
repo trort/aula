@@ -48,10 +48,9 @@ export default function LiteracyRunner(props: {
 
   useEffect(() => {
     if (!task) return;
-    if (task.kind !== "imposter") {
-      const timer = window.setTimeout(speakPrompt, 240);
-      return () => window.clearTimeout(timer);
-    }
+    // 找茬也报读音：一进题先读"多数派"的那个字，孩子听着音去找混进来的那一个
+    const timer = window.setTimeout(speakPrompt, 240);
+    return () => window.clearTimeout(timer);
   }, [idx, task]);
 
   if (!task) return null;
@@ -113,6 +112,8 @@ export default function LiteracyRunner(props: {
     setMissed(nextMissed);
     celebrate(ok);
     if (ok) {
+      // 找茬点对了：把混进来那个字的读音也报出来，听音 + 看形一起记
+      if (task.kind === "imposter") window.setTimeout(() => speak(task.odd), 300);
       window.setTimeout(() => finishOrNext(nextCorrect, nextMissed, nextAnswers), 750);
     }
   };

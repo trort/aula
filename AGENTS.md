@@ -46,9 +46,9 @@
 | 文件 | 职责 |
 | --- | --- |
 | `src/lib/tasks.ts` | 识字"玩法 → 题目"的构造：`buildSessionTasks(mode, chars, size)` 产出统一 `Task`（`audio` / `imposter` / `feed` / `scratch`），一个玩法出一整局 |
-| `src/LiteracyRunner.tsx` | 识字作答界面：卡片（audio）、找茬（imposter）、传送带喂食（import `FeedBelt`）、迷雾寻字（import `ScratchCards`）；统一产出 `AnswerItem[]` |
-| `src/FeedBelt.tsx` · `src/ScratchCards.tsx` | 上面两种玩法的具体实现 |
-| `src/FeedSentence.tsx` | **连句**玩法（另一个独立的 `Screen`，从 `src/data/sentences.ts` 组句，逐字记录进度） |
+| `src/LiteracyRunner.tsx` | 识字作答界面：卡片（audio）、找茬（imposter）、迷雾寻字（import `ScratchCards`）；统一产出 `AnswerItem[]`。首页 chip 上的"传送带喂食"走的是下面 `FeedSentence` |
+| `src/FeedSentence.tsx` | **传送带喂食 / 气球连句**（独立 `Screen`，从 `src/data/sentences.ts` 组句，逐字记录进度）；气球挂在固定槽位上等距横移，池里保证有干扰气球 |
+| `src/FeedBelt.tsx` · `src/ScratchCards.tsx` | `ScratchCards` 是迷雾寻字；`FeedBelt`（拖拽喂食）是 v0.26 的旧实现，已没有入口，留着参考 |
 | `src/lib/mathgen.ts` | 数学**唯一**的题目来源：`MATH_LEVELS`（L1–L6 定义）、`genMathQuestion(level)`、`buildMathQuestions(levels, size)`、`cnNum`、`fillAnswer` |
 | `src/MathQuizScreen.tsx` | 数学作答界面：数字键盘、答对 700ms 自动下一题、答错先亮答案；产出 `MathAnswerItem[]` |
 | `src/RewardFx.tsx` · `src/lib/sfx.ts` · `src/lib/rewards.ts` | 星星/贴纸/连击的奖励算法、音效与动画（`STICKERS`、`calcSessionReward`） |

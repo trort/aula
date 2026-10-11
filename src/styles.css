@@ -1388,11 +1388,27 @@ h2 {
   border: 2px solid #dbe9f5;
 }
 
+/* 横移只改 transform：在合成层上跑，不触发布局/重绘，平板上也不再一顿一顿的 */
+.balloon-track {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  animation: balloon-drift linear infinite;
+  will-change: transform;
+  pointer-events: none;
+}
+
+@keyframes balloon-drift {
+  from { transform: translate3d(105%, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
 .balloon {
   position: absolute;
-  left: 105%;
-  width: 104px;
-  height: 130px;
+  left: 0;
+  top: 0;
+  width: var(--balloon-w, 104px);
+  height: calc(var(--balloon-w, 104px) * 1.25);
   border: none;
   border-radius: 50% 50% 48% 48%;
   display: flex;
@@ -1401,8 +1417,7 @@ h2 {
   justify-content: center;
   box-shadow: inset -10px -12px 18px rgba(0, 0, 0, 0.08), 0 10px 22px rgba(0, 0, 0, 0.12);
   cursor: pointer;
-  animation: belt-move linear infinite;
-  will-change: left;
+  pointer-events: auto;
   font-family: inherit;
   touch-action: none;
 }
@@ -1420,7 +1435,7 @@ h2 {
 
 .balloon-char {
   font-family: var(--kai);
-  font-size: 52px;
+  font-size: calc(var(--balloon-w, 104px) * 0.5);
   color: #fff;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
   line-height: 1;
@@ -1746,4 +1761,81 @@ h2 {
   padding: 0 4px;
   font-size: 14px;
   border-radius: 9px;
+}
+
+/* ---------- 平板 / 大屏：四周别留那么多白，把空间让给题目 ---------- */
+@media (min-width: 760px) {
+  .screen {
+    max-width: 920px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .domain-switch {
+    max-width: 520px;
+  }
+
+  .btn-start {
+    max-width: 480px;
+  }
+
+  /* 首页四种玩法排成两列，不再挤成一长条 */
+  .mode-chips {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  /* 答题：赛道、动物、句子板一起放大，别让题目缩在屏幕中间 */
+  .quiz-body {
+    gap: 26px;
+  }
+
+  .feed-belt-wrap {
+    max-width: 880px;
+  }
+
+  .balloon-lane {
+    max-width: 880px;
+    height: 280px;
+  }
+
+  .feed-mouth {
+    width: 300px;
+    min-height: 210px;
+  }
+
+  .animal {
+    font-size: 118px;
+    margin-top: 30px;
+  }
+
+  .mouth-zone {
+    width: 168px;
+    height: 26px;
+  }
+
+  .sentence-board {
+    max-width: 760px;
+  }
+
+  .sentence-chip {
+    font-size: 52px;
+  }
+
+  .feed-cards {
+    max-width: 660px;
+  }
+
+  .imposter-options {
+    max-width: 680px;
+  }
+
+  .scratch-board {
+    max-width: 760px;
+  }
+
+  .keypad {
+    max-width: 520px;
+  }
 }
