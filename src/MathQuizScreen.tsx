@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { CorrectBurst, StreakToast } from "./RewardFx";
 import { speakMathTokens } from "./lib/audio";
-import { fillAnswer, type MathQuestion } from "./lib/mathgen";
+import { fillAnswer, type MathQuestion, type MathSide } from "./lib/mathgen";
 import { randomPraise } from "./lib/rewards";
 import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
 import type { SessionSummary } from "./lib/storage";
@@ -15,6 +15,7 @@ export default function MathQuizScreen(props: {
   const [idx, setIdx] = useState(0);
   const [input, setInput] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [picked, setPicked] = useState<MathSide | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [missed, setMissed] = useState<string[]>([]);
   const [answers, setAnswers] = useState<MathAnswerItem[]>([]);
@@ -29,9 +30,13 @@ export default function MathQuizScreen(props: {
 
   if (!q) return null;
 
-  const maxLen = String(q.answer).length;
-  const isCorrect = confirmed && Number(input) === q.answer;
-  const [before, after] = q.text.split("?");
+  const compare = q.form === "compare" ? q : null;
+  const fill = q.form === "fill" ? q : null;
+  const maxLen = fill ? String(fill.answer).length : 1;
+  const isCorrect =
+    confirmed &&
+    (fill ? Number(input) === fill.answer : !!compare && picked === compare.bigger);
+  const [before, after] = fill ? fill.text.split("?") : ["", ""];
 
   const finishOrNext = (nc: number, nm: string[], na: MathAnswerItem[]) => {
     if (idx + 1 >= props.questions.length) {
@@ -47,6 +52,7 @@ export default function MathQuizScreen(props: {
       setIdx((i) => i + 1);
       setInput("");
       setConfirmed(false);
+      setPicked(null);
       setToast(null);
       lockRef.current = false;
     }
@@ -62,10 +68,9 @@ export default function MathQuizScreen(props: {
     setInput((prev) => prev.slice(0, -1));
   };
 
-  const submit = () => {
-    if (confirmed || input.length === 0 || lockRef.current) return;
+  /** 记这一题 + 反馈（填空题、比大小题共用） */
+  const settle = (ok: boolean) => {
     lockRef.current = true;
-    const ok = Number(input) === q.answer;
     setConfirmed(true);
     const nextAnswers: MathAnswerItem[] = [...answers, { level: q.level, ok }];
     const nextCorrect = correctCount + (ok ? 1 : 0);
@@ -94,6 +99,17 @@ export default function MathQuizScreen(props: {
     }
   };
 
+  const submit = () => {
+    if (!fill || confirmed || input.length === 0 || lockRef.current) return;
+    settle(Number(input) === fill.answer);
+  };
+
+  const pickSide = (side: MathSide) => {
+    if (!compare || confirmed || lockRef.current) return;
+    setPicked(side);
+    settle(side === compare.bigger);
+  };
+
   const isLast = idx + 1 >= props.questions.length;
 
   return (
@@ -113,21 +129,48 @@ export default function MathQuizScreen(props: {
       </div>
 
       <div className="quiz-body math-body">
-        <div className="equation-line" aria-live="polite">
-          {before}
-          <span
-            className={
-              confirmed
-                ? isCorrect
-                  ? "fill-slot right"
-                  : "fill-slot wrong"
-                : "fill-slot"
-            }
-          >
-            {confirmed ? q.answer : input || "?"}
-          </span>
-          {after}
-        </div>
+        {compare ? (
+          <>
+            <div className="mode-hint">哪边大？点一下 👆</div>
+            <div className="compare-row">
+              {(["left", "right"] as const).map((side) => {
+                const operand = compare[side];
+                let cls = "compare-card";
+                if (confirmed) {
+                  if (side === compare.bigger) cls += " win";
+                  else if (side === picked) cls += " miss";
+                  else cls += " dim";
+                }
+                return (
+                  <button
+                    key={side}
+                    className={cls}
+                    disabled={confirmed}
+                    onClick={() => pickSide(side)}
+                  >
+                    <span className="compare-expr">{operand.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : fill ? (
+          <div className="equation-line" aria-live="polite">
+            {before}
+            <span
+              className={
+                confirmed
+                  ? isCorrect
+                    ? "fill-slot right"
+                    : "fill-slot wrong"
+                  : "fill-slot"
+              }
+            >
+              {confirmed ? fill.answer : input || "?"}
+            </span>
+            {after}
+          </div>
+        ) : null}
 
         <button
           className="btn-speaker"
@@ -137,31 +180,33 @@ export default function MathQuizScreen(props: {
           <span className="speaker-label">听题</span>
         </button>
 
-        <div className="keypad" aria-label="数字键盘">
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
-            <button
-              key={d}
-              className="key"
-              disabled={confirmed}
-              onClick={() => typeDigit(String(d))}
-            >
-              {d}
+        {fill && (
+          <div className="keypad" aria-label="数字键盘">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
+              <button
+                key={d}
+                className="key"
+                disabled={confirmed}
+                onClick={() => typeDigit(String(d))}
+              >
+                {d}
+              </button>
+            ))}
+            <button className="key key-back" disabled={confirmed} onClick={backspace} aria-label="退格">
+              ⌫
             </button>
-          ))}
-          <button className="key key-back" disabled={confirmed} onClick={backspace} aria-label="退格">
-            ⌫
-          </button>
-          <button className="key" disabled={confirmed} onClick={() => typeDigit("0")}>
-            0
-          </button>
-          <button
-            className="key key-ok"
-            disabled={confirmed || input.length === 0}
-            onClick={submit}
-          >
-            确定
-          </button>
-        </div>
+            <button className="key" disabled={confirmed} onClick={() => typeDigit("0")}>
+              0
+            </button>
+            <button
+              className="key key-ok"
+              disabled={confirmed || input.length === 0}
+              onClick={submit}
+            >
+              确定
+            </button>
+          </div>
+        )}
       </div>
 
       {confirmed &&
@@ -169,7 +214,11 @@ export default function MathQuizScreen(props: {
           <div className="feedback ok">⭐ {praise}</div>
         ) : (
           <div className="wrong-actions">
-            <div className="feedback no">正确答案：{q.answer}</div>
+            <div className="feedback no">
+              {compare
+                ? `正确答案：${(compare.bigger === "left" ? compare.left : compare.right).label} 更大`
+                : `正确答案：${fill?.answer ?? ""}`}
+            </div>
             <button
               className="btn-next"
               onClick={() => finishOrNext(correctCount, missed, answers)}

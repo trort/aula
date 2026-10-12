@@ -26,6 +26,7 @@
 | `npm run typecheck` | 只做类型检查 |
 | `npm run check:content` | 校验字库/读音/干扰项/短语（`build` 已内置） |
 | `npm run verify:decoys` | 抽查干扰项生成是否符合内容规则 |
+| `npm run verify:math` | 抽查数学出题：填空算式成立、比大小两边不相等且大小对、数字不超档位 |
 | `bash scripts/gen-audio.sh` | 给缺字音的字批量补晓晓 mp3（需联网 + `edge-tts`） |
 
 ## 3. 文件地图
@@ -49,8 +50,8 @@
 | `src/LiteracyRunner.tsx` | 识字作答界面：卡片（audio）、找茬（imposter）、迷雾寻字（import `ScratchCards`）；统一产出 `AnswerItem[]`。首页 chip 上的"传送带喂食"走的是下面 `FeedSentence` |
 | `src/FeedSentence.tsx` | **传送带喂食 / 气球连句**（独立 `Screen`，从 `src/data/sentences.ts` 组句，逐字记录进度）；气球挂在固定槽位上等距横移，池里保证有干扰气球 |
 | `src/FeedBelt.tsx` · `src/ScratchCards.tsx` | `ScratchCards` 是迷雾寻字；`FeedBelt`（拖拽喂食）是 v0.26 的旧实现，已没有入口，留着参考 |
-| `src/lib/mathgen.ts` | 数学**唯一**的题目来源：`MATH_LEVELS`（L1–L6 定义）、`genMathQuestion(level)`、`buildMathQuestions(levels, size)`、`cnNum`、`fillAnswer` |
-| `src/MathQuizScreen.tsx` | 数学作答界面：数字键盘、答对 700ms 自动下一题、答错先亮答案；产出 `MathAnswerItem[]` |
+| `src/lib/mathgen.ts` | 数学**唯一**的题目来源：`MATH_LEVELS`（L1–L6 定义）、`LEVEL_MIX`（每档"填空 : 比大小"配比）、`genMathQuestion(level)`、`buildMathQuestions(levels, size)`、`cnNum`、`fillAnswer` |
+| `src/MathQuizScreen.tsx` | 数学作答界面：填空（数字键盘）/ 比大小（点大的那一边）两种作答、答对 700ms 自动下一题、答错先亮答案；产出 `MathAnswerItem[]` |
 | `src/RewardFx.tsx` · `src/lib/sfx.ts` · `src/lib/rewards.ts` | 星星/贴纸/连击的奖励算法、音效与动画（`STICKERS`、`calcSessionReward`） |
 
 ### 3.3 进度引擎与数据（**改得最多的部分**）
@@ -81,6 +82,7 @@
 | --- | --- |
 | `scripts/check-content.mjs` | 内容规则校验（同音字、短语、读音表完整性），`npm run build` 会先跑它 |
 | `scripts/verify-decoys.ts` | 干扰项抽样核对 |
+| `scripts/verify-math.ts` | 数学出题抽样核对（填空算式、比大小判对、数字范围、题型配比） |
 | `scripts/gen-audio.sh` | 扫描字库缺失的 `public/audio/*.mp3` 并批量生成 |
 
 ## 4. 核心机制（改之前先看懂）
@@ -120,6 +122,12 @@
    减法 L3 第 17 天、退位减法 L4 第 30 天、小侦探 L5 第 44 天 →
    间隔 16 / 13 / 14 天，**约两周一个新概念**；全对时 L3 也要到第 12–13 天
    （每天 100 题的全对狂人也要第 8 天），即"最快也要一周"由 `minDays` 保证。
+
+**题型配比（和上面的节奏参数是两回事）**：档位只决定"练什么概念"，
+每档里出**哪几种问法**由 `src/lib/mathgen.ts` 的 `LEVEL_MIX` 定 —— 两大类：
+**填空**（`3 + 4 = ?` / `? + 4 = 7` / `3 + ? = 7`，数字键盘作答）和
+**比大小**（`3 和 4 谁大？` / `3 + 4 和 2 + 5 谁大？`，点大的那一边作答）。
+配比大约 7:3（L5 是 8:2）。比大小题**不会出现"一样大"**，掌握进度仍记在所属档位上。
 
 **调参速查**
 
@@ -162,7 +170,8 @@
 
 ### 4.4 语音与内容约束
 
-- 单字/整词优先 `public/audio/*.mp3`（晓晓神经语音），缺失才回退 Web TTS；数学是"数字/运算符片段拼接"（`speakTokens`）。
+- 单字/整词优先 `public/audio/*.mp3`（晓晓神经语音），缺失才回退 Web TTS；数学是"数字/运算符片段拼接"（`speakTokens` + `public/audio/math/`）。
+  比大小题念"三 和 四 谁 大"，用到 `and` / `who` / `big` 三段（目前缺文件 → 整句回退系统 TTS，补上文件即自动生效）。
 - **靠听音出题的玩法，选项里不能有与目标字同音的字**（不计声调）。`src/lib/decoys.ts` 会自动跳过，
   但手工数据（`curated.ts`）里允许保留同音形近字——它们只服务纯视觉的"找茬"。
 
@@ -184,6 +193,7 @@
 | 数学/识字进度太快或太慢 | 只改 `src/lib/pace.ts`（先看 §4.1 的实测数据） |
 | 家长页面加/改手动调整能力 | `src/App.tsx` 的 `StatsScreen` + `src/lib/storage.ts` 的 set/reset 函数 |
 | 新增数学难度（如乘法 L7） | `src/lib/mathgen.ts`（`MATH_LEVELS` + `genMathQuestion` + `buildSpeakTokens`）+ 需要的语音片段 |
+| 数学换问法 / 调题型配比 | `src/lib/mathgen.ts` 的 `LEVEL_MIX`（填空 : 比大小）+ 对应的 `gen*` 函数，改完跑 `npm run verify:math` |
 | 新增识字玩法 | `src/lib/tasks.ts` 的 `Task` 联合类型 + 对应 Runner 组件 + `src/App.tsx` 的 `quiz` 分支 + 首页 chip |
 | 加字 / 加干扰项 / 加句子 | 见 `docs/content-rules.md`（三处同步 + 跑 `check:content`） |
 | 改奖励（星星/贴纸/连击） | `src/lib/rewards.ts` + `src/RewardFx.tsx` + `ResultScreen` |
@@ -196,4 +206,6 @@
 - 反应延迟（Latency）数据没接入 SRS；SRS 目前只是"错字到期 + 间隔拉长"。
 - 迷雾寻字的手感参数（刮开阈值 55%、笔刷 36px）只在桌面验证过，真机待调。
 - 传送带喂食"气球飞向小动物"还没有真正的飞行动画；数学整句朗读仍是片段拼接。
+- 比大小要用的三段晓晓音（`public/audio/math/and.mp3`·`who.mp3`·`big.mp3`）还没生成
+  （2026-10-12 试过 edge-tts，服务端返回 403）；暂时整句回退系统 TTS，补文件即自动生效。
 - 找茬进阶（3×3 → 更难）、多孩子档案未做。

@@ -85,8 +85,17 @@ export function speak(text: string): void {
   speakWithTTS(text);
 }
 
-// 数学：晓晓预生成片段按顺序拼接（数字 0-99 + 加/减/等于/几），不依赖系统语音
-export type MathSpeechToken = number | "add" | "sub" | "eq" | "ask";
+// 数学：晓晓预生成片段按顺序拼接（数字 0-99 + 加/减/等于/几/和/谁/大），不依赖系统语音
+// "and" / "who" / "big" 是比大小题用的（3 和 4 谁大）；片段缺失时会整句回退系统 TTS
+export type MathSpeechToken =
+  | number
+  | "add"
+  | "sub"
+  | "eq"
+  | "ask"
+  | "and"
+  | "who"
+  | "big";
 
 function playMathChain(
   tokens: MathSpeechToken[],

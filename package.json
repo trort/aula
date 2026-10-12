@@ -1,7 +1,7 @@
 {
   "name": "kids-learning-companion",
   "private": true,
-  "version": "0.39.0",
+  "version": "0.40.0",
   "type": "module",
   "description": "Kids Learning Companion - 幼小衔接识字数字伴侣 (MVP)",
   "scripts": {
@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "check:content": "node scripts/check-content.mjs",
-    "verify:decoys": "esbuild scripts/verify-decoys.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/verify-decoys.mjs --log-level=warning && node node_modules/.cache/verify-decoys.mjs"
+    "verify:decoys": "esbuild scripts/verify-decoys.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/verify-decoys.mjs --log-level=warning && node node_modules/.cache/verify-decoys.mjs",
+    "verify:math": "esbuild scripts/verify-math.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/verify-math.mjs --log-level=warning && node node_modules/.cache/verify-math.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",
