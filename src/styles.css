@@ -363,56 +363,83 @@ h2 {
   border-color: var(--red);
 }
 
-/* 比大小：左右两张卡片，点一下大的那一边 */
-.compare-row {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: 12px;
-  width: 100%;
-  max-width: 560px;
-}
-
-.compare-card {
-  flex: 1;
-  min-height: 122px;
-  padding: 6px 10px;
-  border: 4px solid #eadfcb;
-  border-radius: 28px;
-  background: var(--card);
-  box-shadow: 0 8px 18px rgba(122, 74, 31, 0.12);
+/* 选择题（比大小）：左边数 ？ 右边数，下面三个选项"小于 / 等于 / 大于" */
+.compare-line {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: clamp(10px, 3vw, 26px);
+  width: 100%;
+  font-size: clamp(42px, 11vw, 78px);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-side {
+  text-align: center;
+}
+
+.compare-side.expr {
+  font-size: clamp(26px, 7vw, 54px);
+  letter-spacing: 2px;
+}
+
+.compare-slot {
+  min-width: 1.5em;
+  text-align: center;
+  color: #cbb587;
+}
+
+.compare-slot.right {
+  color: var(--green);
+}
+
+.compare-slot.wrong {
+  color: var(--red);
+}
+
+.compare-choices {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 460px;
+}
+
+.compare-choice {
+  flex: 1;
+  min-height: 76px;
+  border: 4px solid #eadfcb;
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: 0 6px 16px rgba(122, 74, 31, 0.1);
   cursor: pointer;
   font-family: inherit;
-  color: var(--ink);
-  font-size: clamp(30px, 8vw, 52px);
+  font-size: clamp(20px, 5.5vw, 30px);
   font-weight: 800;
-  letter-spacing: 2px;
-  font-variant-numeric: tabular-nums;
+  color: var(--ink);
   transition: transform 0.08s ease, border-color 0.12s ease, background 0.12s ease;
 }
 
-.compare-card:active {
-  transform: scale(0.97);
+.compare-choice:active {
+  transform: scale(0.96);
 }
 
-.compare-card.win {
+.compare-choice.win {
   border-color: var(--green);
   background: var(--soft-green);
 }
 
-.compare-card.miss {
+.compare-choice.miss {
   border-color: var(--red);
   background: var(--soft-red);
 }
 
-.compare-card.dim {
+.compare-choice.dim {
   opacity: 0.45;
 }
 
-.compare-card:disabled {
+.compare-choice:disabled {
   cursor: default;
 }
 
@@ -1892,14 +1919,13 @@ h2 {
     max-width: 520px;
   }
 
-  .compare-row {
-    max-width: 720px;
-    gap: 16px;
+  .compare-choices {
+    max-width: 560px;
+    gap: 14px;
   }
 
-  .compare-card {
-    min-height: 168px;
-    border-radius: 34px;
-    font-size: 64px;
+  .compare-choice {
+    min-height: 92px;
+    border-radius: 28px;
   }
 }

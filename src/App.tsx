@@ -25,6 +25,7 @@ import {
 import {
   MATH_LEVELS,
   buildMathQuestions,
+  type MathType,
 } from "./lib/mathgen";
 import { buildSessionTasks, type LiteracyMode, type Task } from "./lib/tasks";
 import {
@@ -46,7 +47,7 @@ import {
 import type { AnswerItem, Domain, MathAnswerItem, Screen } from "./lib/types";
 
 const COUNT_OPTIONS = [5, 10, 15];
-const APP_VERSION = "0.40";
+const APP_VERSION = "0.41";
 
 interface LastReward {
   stars: number;
@@ -60,6 +61,7 @@ export default function App() {
   const [domain, setDomain] = useState<Domain>("literacy");
   const [state, setState] = useState<AppState>(() => loadState());
   const [literacyMode, setLiteracyMode] = useState<LiteracyMode>("audio");
+  const [mathType, setMathType] = useState<MathType>("fill");
   const [feedSentence, setFeedSentence] = useState("");
   const [feedUnits, setFeedUnits] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(10);
@@ -147,11 +149,11 @@ export default function App() {
       state.math,
       questionCount
     );
-    const qs = buildMathQuestions(pickedLevels, questionCount);
+    const qs = buildMathQuestions(pickedLevels, questionCount, mathType);
     setMathQuestions(qs);
     setDomain("math");
     setScreen("quiz");
-  }, [state.math, questionCount]);
+  }, [state.math, questionCount, mathType]);
 
   const finishSession = useCallback(
     (summary: SessionSummary & { answers: AnswerItem[] }) => {
@@ -318,6 +320,8 @@ export default function App() {
         }
         literacyMode={literacyMode}
         onModeChange={setLiteracyMode}
+        mathType={mathType}
+        onMathTypeChange={setMathType}
         feedLocked={masteredTotal < 30}
         questionCount={questionCount}
         onCountChange={setQuestionCount}
@@ -432,6 +436,8 @@ function HomeScreen(props: {
   footerText: string;
   literacyMode: LiteracyMode;
   onModeChange: (m: LiteracyMode) => void;
+  mathType: MathType;
+  onMathTypeChange: (t: MathType) => void;
   feedLocked: boolean;
   questionCount: number;
   onCountChange: (n: number) => void;
@@ -538,6 +544,28 @@ function HomeScreen(props: {
             >
               <span className="chip-title">🕯️ 迷雾寻字</span>
               <span className="chip-desc">刮开迷雾，找出听到的字</span>
+            </button>
+          </div>
+        </section>
+      )}
+
+      {isMath && (
+        <section className="panel">
+          <h2>做哪一类题？</h2>
+          <div className="chips mode-chips">
+            <button
+              className={props.mathType === "fill" ? "chip active" : "chip"}
+              onClick={() => props.onMathTypeChange("fill")}
+            >
+              <span className="chip-title">✏️ 填空题</span>
+              <span className="chip-desc">算一算，用数字键盘填答案（3 + 4 = ? / 3 + ? = 7）</span>
+            </button>
+            <button
+              className={props.mathType === "compare" ? "chip active" : "chip"}
+              onClick={() => props.onMathTypeChange("compare")}
+            >
+              <span className="chip-title">⚖️ 选择题</span>
+              <span className="chip-desc">比一比，选小于 / 等于 / 大于（3 ? 4）</span>
             </button>
           </div>
         </section>

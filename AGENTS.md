@@ -12,7 +12,7 @@
 | 域 | 内容驱动方式 | 内容量 | 玩法 |
 | --- | --- | --- | --- |
 | 识字岛 | 静态字库（315 字 · 22 个字表）+ 逐字掌握记录 | 大 | 听音选字 · 找茬 · 传送带喂食 · 迷雾寻字 · 连句 |
-| 数学岛 | 纯规则即时生成（**无题库**），难度 L1–L6 | 小（6 档概念） | 数字键盘填空 |
+| 数学岛 | 纯规则即时生成（**无题库**），难度 L1–L6 | 小（6 档概念） | 填空（数字键盘）· 选择题（比大小） |
 
 - 线上：https://trort.github.io/aula/ ；仓库 `trort/aula`，本地根目录 = 仓库根目录。
 - `push main` 自动部署 GitHub Pages（`.github/workflows/deploy.yml`）。
@@ -50,8 +50,8 @@
 | `src/LiteracyRunner.tsx` | 识字作答界面：卡片（audio）、找茬（imposter）、迷雾寻字（import `ScratchCards`）；统一产出 `AnswerItem[]`。首页 chip 上的"传送带喂食"走的是下面 `FeedSentence` |
 | `src/FeedSentence.tsx` | **传送带喂食 / 气球连句**（独立 `Screen`，从 `src/data/sentences.ts` 组句，逐字记录进度）；气球挂在固定槽位上等距横移，池里保证有干扰气球 |
 | `src/FeedBelt.tsx` · `src/ScratchCards.tsx` | `ScratchCards` 是迷雾寻字；`FeedBelt`（拖拽喂食）是 v0.26 的旧实现，已没有入口，留着参考 |
-| `src/lib/mathgen.ts` | 数学**唯一**的题目来源：`MATH_LEVELS`（L1–L6 定义）、`LEVEL_MIX`（每档"填空 : 比大小"配比）、`genMathQuestion(level)`、`buildMathQuestions(levels, size)`、`cnNum`、`fillAnswer` |
-| `src/MathQuizScreen.tsx` | 数学作答界面：填空（数字键盘）/ 比大小（点大的那一边）两种作答、答对 700ms 自动下一题、答错先亮答案；产出 `MathAnswerItem[]` |
+| `src/lib/mathgen.ts` | 数学**唯一**的题目来源：`MATH_LEVELS`（L1–L6 定义）、`MathType`（`fill` 填空 / `compare` 选择题）、`FILL_MIX`·`COMPARE_MIX`（每档问法配比）、`genMathQuestion(level, type)`、`buildMathQuestions(levels, size, type)`、`MATH_RELATIONS`（小于/等于/大于）、`cnNum`、`fillAnswer` |
+| `src/MathQuizScreen.tsx` | 数学作答界面：填空（数字键盘）/ 选择题比大小（`3 ? 4` + 小于/等于/大于 三选项）、答对 700ms 自动下一题、答错先亮答案；产出 `MathAnswerItem[]` |
 | `src/RewardFx.tsx` · `src/lib/sfx.ts` · `src/lib/rewards.ts` | 星星/贴纸/连击的奖励算法、音效与动画（`STICKERS`、`calcSessionReward`） |
 
 ### 3.3 进度引擎与数据（**改得最多的部分**）
@@ -123,11 +123,16 @@
    间隔 16 / 13 / 14 天，**约两周一个新概念**；全对时 L3 也要到第 12–13 天
    （每天 100 题的全对狂人也要第 8 天），即"最快也要一周"由 `minDays` 保证。
 
-**题型配比（和上面的节奏参数是两回事）**：档位只决定"练什么概念"，
-每档里出**哪几种问法**由 `src/lib/mathgen.ts` 的 `LEVEL_MIX` 定 —— 两大类：
-**填空**（`3 + 4 = ?` / `? + 4 = 7` / `3 + ? = 7`，数字键盘作答）和
-**比大小**（`3 和 4 谁大？` / `3 + 4 和 2 + 5 谁大？`，点大的那一边作答）。
-配比大约 7:3（L5 是 8:2）。比大小题**不会出现"一样大"**，掌握进度仍记在所属档位上。
+**题型（和上面的节奏参数是两回事）**：档位只决定"练什么概念"，**题型由孩子在首页选**
+（和识字岛挑玩法一样），一局只出一种：
+
+- **填空题（`fill`）**：算式挖一个空、数字键盘作答，`3 + 4 = ?` / `? + 4 = 7` / `3 + ? = 7`。
+  `FILL_MIX` 决定每档里"普通填空 : 换个位置挖空"的比例。
+- **选择题（`compare`，比大小）**：左边数 `?` 右边数，选**小于 / 等于 / 大于**，
+  形如 `3 ? 4` 或 `3 + 4 ? 2 + 5`。`COMPARE_MIX` 决定每档里"数字比大小 : 算式比大小"的比例。
+  约 1/4 的题两边**一样大**（"等于"必须是正确答案之一），答案分布约 小于 36% / 等于 25% / 大于 36%。
+
+两种题型的掌握进度都记在所属档位（L1–L6）上，不新增档位、不动存档结构。
 
 **调参速查**
 
@@ -171,7 +176,8 @@
 ### 4.4 语音与内容约束
 
 - 单字/整词优先 `public/audio/*.mp3`（晓晓神经语音），缺失才回退 Web TTS；数学是"数字/运算符片段拼接"（`speakTokens` + `public/audio/math/`）。
-  比大小题念"三 和 四 谁 大"，用到 `and` / `who` / `big` 三段（目前缺文件 → 整句回退系统 TTS，补上文件即自动生效）。
+  选择题（比大小）念"三 和 四 谁 大"，用到 `and` / `who` / `big` 三段（目前缺文件 → 整句回退系统 TTS，补上文件即自动生效）；
+  三个选项（小于/等于/大于）是**看的**，不朗读。
 - **靠听音出题的玩法，选项里不能有与目标字同音的字**（不计声调）。`src/lib/decoys.ts` 会自动跳过，
   但手工数据（`curated.ts`）里允许保留同音形近字——它们只服务纯视觉的"找茬"。
 
@@ -193,7 +199,8 @@
 | 数学/识字进度太快或太慢 | 只改 `src/lib/pace.ts`（先看 §4.1 的实测数据） |
 | 家长页面加/改手动调整能力 | `src/App.tsx` 的 `StatsScreen` + `src/lib/storage.ts` 的 set/reset 函数 |
 | 新增数学难度（如乘法 L7） | `src/lib/mathgen.ts`（`MATH_LEVELS` + `genMathQuestion` + `buildSpeakTokens`）+ 需要的语音片段 |
-| 数学换问法 / 调题型配比 | `src/lib/mathgen.ts` 的 `LEVEL_MIX`（填空 : 比大小）+ 对应的 `gen*` 函数，改完跑 `npm run verify:math` |
+| 数学换问法 / 调某档的问法配比 | `src/lib/mathgen.ts` 的 `FILL_MIX`（普通填空 : 挖空）· `COMPARE_MIX`（数字 : 算式）+ 对应的 `gen*` 函数，改完跑 `npm run verify:math` |
+| 数学加/改题型（首页那排 chip） | `src/App.tsx` 的 `mathType` + 首页"做哪一类题？" + `src/lib/mathgen.ts` 的 `MathType` |
 | 新增识字玩法 | `src/lib/tasks.ts` 的 `Task` 联合类型 + 对应 Runner 组件 + `src/App.tsx` 的 `quiz` 分支 + 首页 chip |
 | 加字 / 加干扰项 / 加句子 | 见 `docs/content-rules.md`（三处同步 + 跑 `check:content`） |
 | 改奖励（星星/贴纸/连击） | `src/lib/rewards.ts` + `src/RewardFx.tsx` + `ResultScreen` |

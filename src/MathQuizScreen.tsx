@@ -1,11 +1,23 @@
 import { useMemo, useRef, useState } from "react";
 import { CorrectBurst, StreakToast } from "./RewardFx";
 import { speakMathTokens } from "./lib/audio";
-import { fillAnswer, type MathQuestion, type MathSide } from "./lib/mathgen";
+import {
+  MATH_RELATIONS,
+  fillAnswer,
+  relationLabel,
+  type MathQuestion,
+  type MathOperand,
+  type MathRelation,
+} from "./lib/mathgen";
 import { randomPraise } from "./lib/rewards";
 import { playCorrect, playMilestone, playWrong } from "./lib/sfx";
 import type { SessionSummary } from "./lib/storage";
 import type { MathAnswerItem } from "./lib/types";
+
+/** 比大小的两边：算式（"13 + 5"）比单个数字长，字号要小一档 */
+function sideClass(side: MathOperand): string {
+  return "compare-side" + (side.label.includes(" ") ? " expr" : "");
+}
 
 export default function MathQuizScreen(props: {
   questions: MathQuestion[];
@@ -15,7 +27,7 @@ export default function MathQuizScreen(props: {
   const [idx, setIdx] = useState(0);
   const [input, setInput] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  const [picked, setPicked] = useState<MathSide | null>(null);
+  const [picked, setPicked] = useState<MathRelation | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [missed, setMissed] = useState<string[]>([]);
   const [answers, setAnswers] = useState<MathAnswerItem[]>([]);
@@ -35,7 +47,7 @@ export default function MathQuizScreen(props: {
   const maxLen = fill ? String(fill.answer).length : 1;
   const isCorrect =
     confirmed &&
-    (fill ? Number(input) === fill.answer : !!compare && picked === compare.bigger);
+    (fill ? Number(input) === fill.answer : !!compare && picked === compare.relation);
   const [before, after] = fill ? fill.text.split("?") : ["", ""];
 
   const finishOrNext = (nc: number, nm: string[], na: MathAnswerItem[]) => {
@@ -104,10 +116,10 @@ export default function MathQuizScreen(props: {
     settle(Number(input) === fill.answer);
   };
 
-  const pickSide = (side: MathSide) => {
+  const pickRelation = (relation: MathRelation) => {
     if (!compare || confirmed || lockRef.current) return;
-    setPicked(side);
-    settle(side === compare.bigger);
+    setPicked(relation);
+    settle(relation === compare.relation);
   };
 
   const isLast = idx + 1 >= props.questions.length;
@@ -131,24 +143,38 @@ export default function MathQuizScreen(props: {
       <div className="quiz-body math-body">
         {compare ? (
           <>
-            <div className="mode-hint">哪边大？点一下 👆</div>
-            <div className="compare-row">
-              {(["left", "right"] as const).map((side) => {
-                const operand = compare[side];
-                let cls = "compare-card";
+            <div className="mode-hint">比一比，选一个 👇</div>
+            <div className="compare-line">
+              <span className={sideClass(compare.left)}>{compare.left.label}</span>
+              <span
+                className={
+                  confirmed
+                    ? isCorrect
+                      ? "compare-slot right"
+                      : "compare-slot wrong"
+                    : "compare-slot"
+                }
+              >
+                {confirmed ? relationLabel(compare.relation) : "?"}
+              </span>
+              <span className={sideClass(compare.right)}>{compare.right.label}</span>
+            </div>
+            <div className="compare-choices">
+              {MATH_RELATIONS.map((rel) => {
+                let cls = "compare-choice";
                 if (confirmed) {
-                  if (side === compare.bigger) cls += " win";
-                  else if (side === picked) cls += " miss";
+                  if (rel.id === compare.relation) cls += " win";
+                  else if (rel.id === picked) cls += " miss";
                   else cls += " dim";
                 }
                 return (
                   <button
-                    key={side}
+                    key={rel.id}
                     className={cls}
                     disabled={confirmed}
-                    onClick={() => pickSide(side)}
+                    onClick={() => pickRelation(rel.id)}
                   >
-                    <span className="compare-expr">{operand.label}</span>
+                    {rel.label}
                   </button>
                 );
               })}
@@ -216,7 +242,7 @@ export default function MathQuizScreen(props: {
           <div className="wrong-actions">
             <div className="feedback no">
               {compare
-                ? `正确答案：${(compare.bigger === "left" ? compare.left : compare.right).label} 更大`
+                ? `正确答案：${fillAnswer(compare)}`
                 : `正确答案：${fill?.answer ?? ""}`}
             </div>
             <button

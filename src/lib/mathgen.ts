@@ -1,9 +1,10 @@
 // 数学域：纯规则约束生成器（无静态题库）
 //
-// 每一档难度都有一张"题型配比表"（FORM_MIX）：填空为主，穿插
-//   1) 换个位置挖空："3 + ? = 7" / "? + 4 = 7"（L5 整档都是这种）
-//   2) 比大小：数字比大小（3 和 4 谁大）、算式比大小（3 + 4 和 2 + 5 谁大）
-// 同一档里不会一直是同一种问法。以后加乘法/除法，照 FORM_MIX 追加策略即可。
+// 和识字那边一样，**先选题型，再出题**，一局只玩一种：
+//   A. 填空（MathType = "fill"）—— 算式挖一个空，数字键盘填；问法有
+//        普通填空（3 + 4 = ?）和换个位置挖空（? + 4 = 7 / 3 + ? = 7）
+//   B. 选择题（MathType = "compare"）—— 比大小：左边数 ? 右边数，选"小于 / 等于 / 大于"
+// 难度仍由 L1–L6 决定；每种题型内部各有一张配比表（FILL_MIX / COMPARE_MIX）。
 
 import type { MathSpeechToken } from "./audio";
 
@@ -33,12 +34,26 @@ export type MathFillKind =
   | "addBig"
   | "subBig";
 
-/** 比大小题：点一下大的那一边（数字或算式），不用键盘 */
+/** 选择题（比大小）：左边 ? 右边，选"小于 / 等于 / 大于" */
 export type MathCompareKind = "compareNum" | "compareExpr";
 
 export type MathKind = MathFillKind | MathCompareKind;
 
-export type MathSide = "left" | "right";
+/** 出题两大类：一局只出一种（和识字的玩法选择一样） */
+export type MathType = "fill" | "compare";
+
+/** 比大小的答案：左边小于 / 等于 / 大于右边 */
+export type MathRelation = "lt" | "eq" | "gt";
+
+export const MATH_RELATIONS: Array<{ id: MathRelation; label: string }> = [
+  { id: "lt", label: "小于" },
+  { id: "eq", label: "等于" },
+  { id: "gt", label: "大于" },
+];
+
+export function relationLabel(relation: MathRelation): string {
+  return MATH_RELATIONS.find((r) => r.id === relation)?.label ?? "";
+}
 
 /** 比大小的一边：label 给孩子看（"3" 或 "3 + 4"），value 用来判对错 */
 export interface MathOperand {
@@ -64,8 +79,8 @@ export interface CompareQuestion {
   kind: MathCompareKind;
   left: MathOperand;
   right: MathOperand;
-  bigger: MathSide;
-  text: string; // 展示用，如 "3 + 4 和 2 + 5 谁大？"
+  relation: MathRelation;
+  text: string; // 展示用，如 "3 + 4 ? 2 + 5"
   speakText: string;
   speakTokens: MathSpeechToken[];
 }
@@ -286,20 +301,26 @@ function makeCompare(
     kind,
     left,
     right,
-    bigger: left.value > right.value ? "left" : "right",
-    text: `${left.label} 和 ${right.label} 谁大？`,
+    relation:
+      left.value === right.value ? "eq" : left.value < right.value ? "lt" : "gt",
+    text: `${left.label} ? ${right.label}`,
     speakText: `${sayOperand(left)}和${sayOperand(right)}谁大`,
     speakTokens: compareTokens(left, right),
   };
 }
 
+/** 出现"一样大"（等于）的比例：三个选项都得有正确答案，不能总是不等 */
+const EQUAL_CHANCE = 0.25;
+
 function genCompareNum(level: MathLevel): CompareQuestion {
   const [lo, hi] = numberRange(level);
   const x = randInt(lo, hi);
-  let y = randInt(lo, hi);
-  let guard = 0;
-  while (y === x && guard++ < 60) y = randInt(lo, hi);
-  if (y === x) y = x === hi ? lo : x + 1; // 兜底：绝不出现"一样大"
+  let y = x;
+  if (Math.random() >= EQUAL_CHANCE) {
+    let guard = 0;
+    while (y === x && guard++ < 60) y = randInt(lo, hi);
+    if (y === x) y = x === hi ? lo : x + 1; // 兜底：保证不等
+  }
   return makeCompare(
     level,
     "compareNum",
@@ -308,72 +329,107 @@ function genCompareNum(level: MathLevel): CompareQuestion {
   );
 }
 
-/** 算式比大小：减法档比减法，其余比加法，两边结果保证不相等 */
+/** 这一档里，a op b 这个算式合不合法（用来凑"值相同、写法不同"的式子） */
+function validPair(level: MathLevel, minus: boolean, x: number, y: number): boolean {
+  if (x < 1 || y < 1 || y > 9) return false;
+  if (minus) {
+    if (x <= y) return false;
+    switch (level) {
+      case "L1":
+      case "L2":
+      case "L5":
+        return x <= 10;
+      case "L3":
+        return x <= 9;
+      case "L4":
+        return x >= 10 && x <= 18 && y > x % 10; // 退位
+      case "L6":
+        return x >= 11 && x <= 99 && y <= (x % 10 === 0 ? 9 : x % 10); // 不退位
+    }
+  }
+  switch (level) {
+    case "L1":
+    case "L3":
+    case "L4":
+    case "L5":
+      return x <= 9 && x + y <= 10;
+    case "L2":
+      return x >= 2 && x <= 9 && y >= 2 && y <= 9;
+    case "L6":
+      return x >= 11 && x <= 89 && y <= 9 - (x % 10); // 两位数 + 一位数（不进位）
+  }
+}
+
+/** 找一个和另一个算式"结果一样、写法不同"的算式（给孩子凑"等于"的题） */
+function pairWithValue(
+  level: MathLevel,
+  minus: boolean,
+  value: number,
+  exclude: NumPair
+): NumPair | null {
+  const found: NumPair[] = [];
+  if (minus) {
+    for (let y = 1; y <= 9; y++) {
+      const x = value + y;
+      if (validPair(level, true, x, y)) found.push([x, y]);
+      if (found.length > 40) break;
+    }
+  } else {
+    for (let x = 1; x < value; x++) {
+      const y = value - x;
+      if (validPair(level, false, x, y)) found.push([x, y]);
+      if (found.length > 40) break;
+    }
+  }
+  const others = found.filter(([x, y]) => x !== exclude[0] || y !== exclude[1]);
+  if (others.length === 0) return null;
+  return others[Math.floor(Math.random() * others.length)];
+}
+
+/** 算式比大小：减法档比减法，其余比加法；两边可能相等 */
 function genCompareExpr(level: MathLevel): CompareQuestion {
   const minus = level === "L3" || level === "L4";
   const op = minus ? "-" : "+";
-  const side = (): MathOperand => {
-    const [x, y] = minus ? subPair(level) : addPair(level);
-    return { label: `${x} ${op} ${y}`, value: minus ? x - y : x + y };
-  };
+  const operand = ([x, y]: NumPair): MathOperand => ({
+    label: `${x} ${op} ${y}`,
+    value: minus ? x - y : x + y,
+  });
+  const drawPair = (): NumPair => (minus ? subPair(level) : addPair(level));
+
   for (let i = 0; i < 200; i++) {
-    const left = side();
-    const right = side();
+    const leftPair = drawPair();
+    const left = operand(leftPair);
+    if (Math.random() < EQUAL_CHANCE) {
+      const mate = pairWithValue(level, minus, left.value, leftPair);
+      if (mate) return makeCompare(level, "compareExpr", left, operand(mate));
+    }
+    const right = operand(drawPair());
     if (left.value !== right.value) return makeCompare(level, "compareExpr", left, right);
   }
   return genCompareNum(level); // 理论上到不了这里
 }
 
 // ---------- 题型配比 + 入口 ----------
-// 就两大类：
-//   A. 填空（fill）  —— 算式挖一个空，孩子用数字键盘填；问法可以是
-//                       普通填空（3 + 4 = ?）或挖空（? + 4 = 7 / 3 + ? = 7）
-//   B. 比大小（compare）—— 点一下大的那一边；可以是数字（3 和 4）或算式（3 + 4 和 2 + 5）
-// 下面每一档给出两大类的配比，再给每一类内部的问法权重。
-interface LevelMix {
-  fill: number;
-  compare: number;
-  fillMix: Array<[MathFillKind, number]>;
-  compareMix: Array<[MathCompareKind, number]>;
-}
+// 一局只出一种大类（孩子先选）；这里给的是每一档内部的问法配比。
 
-const LEVEL_MIX: Record<MathLevel, LevelMix> = {
-  L1: {
-    fill: 7,
-    compare: 3,
-    fillMix: [["add", 4], ["missingAdd", 3]],
-    compareMix: [["compareNum", 1]],
-  },
-  L2: {
-    fill: 7,
-    compare: 3,
-    fillMix: [["add", 5], ["missingAdd", 3]],
-    compareMix: [["compareExpr", 3], ["compareNum", 1]],
-  },
-  L3: {
-    fill: 7,
-    compare: 3,
-    fillMix: [["sub", 5], ["missingSub", 3]],
-    compareMix: [["compareExpr", 1]],
-  },
-  L4: {
-    fill: 7,
-    compare: 3,
-    fillMix: [["sub", 5], ["missingSub", 3]],
-    compareMix: [["compareExpr", 1]],
-  },
-  L5: {
-    fill: 8,
-    compare: 2,
-    fillMix: [["missingAdd", 4], ["missingSub", 4]],
-    compareMix: [["compareExpr", 1]],
-  },
-  L6: {
-    fill: 7,
-    compare: 3,
-    fillMix: [["addBig", 3], ["subBig", 3], ["missingAdd", 1], ["missingSub", 1]],
-    compareMix: [["compareExpr", 2], ["compareNum", 1]],
-  },
+/** 填空题内部：普通填空 / 换个位置挖空 */
+const FILL_MIX: Record<MathLevel, Array<[MathFillKind, number]>> = {
+  L1: [["add", 4], ["missingAdd", 3]],
+  L2: [["add", 4], ["missingAdd", 3]],
+  L3: [["sub", 5], ["missingSub", 3]],
+  L4: [["sub", 5], ["missingSub", 3]],
+  L5: [["missingAdd", 4], ["missingSub", 4]],
+  L6: [["addBig", 3], ["subBig", 3], ["missingAdd", 1], ["missingSub", 1]],
+};
+
+/** 选择题内部：数字比大小 / 算式比大小 */
+const COMPARE_MIX: Record<MathLevel, Array<[MathCompareKind, number]>> = {
+  L1: [["compareNum", 7], ["compareExpr", 3]],
+  L2: [["compareNum", 3], ["compareExpr", 7]],
+  L3: [["compareNum", 2], ["compareExpr", 8]],
+  L4: [["compareNum", 2], ["compareExpr", 8]],
+  L5: [["compareNum", 4], ["compareExpr", 6]],
+  L6: [["compareNum", 5], ["compareExpr", 5]],
 };
 
 function pickWeighted<T>(mix: Array<[T, number]>): T {
@@ -386,20 +442,14 @@ function pickWeighted<T>(mix: Array<[T, number]>): T {
   return mix[mix.length - 1][0];
 }
 
-/** 先按"填空 : 比大小"抽大类，再抽这类里的具体问法 */
-function pickKind(level: MathLevel): MathKind {
-  const mix = LEVEL_MIX[level];
-  const category = pickWeighted<"fill" | "compare">([
-    ["fill", mix.fill],
-    ["compare", mix.compare],
-  ]);
-  return category === "fill"
-    ? pickWeighted(mix.fillMix)
-    : pickWeighted(mix.compareMix);
-}
-
-export function genMathQuestion(level: MathLevel): MathQuestion {
-  switch (pickKind(level)) {
+/** 出题：type 决定这一局是填空还是选择题，难度仍由 level 决定 */
+export function genMathQuestion(level: MathLevel, type: MathType = "fill"): MathQuestion {
+  if (type === "compare") {
+    return pickWeighted(COMPARE_MIX[level]) === "compareNum"
+      ? genCompareNum(level)
+      : genCompareExpr(level);
+  }
+  switch (pickWeighted(FILL_MIX[level])) {
     case "add":
       return genAdd(level, "add");
     case "sub":
@@ -412,28 +462,21 @@ export function genMathQuestion(level: MathLevel): MathQuestion {
       return genMissingAdd(level);
     case "missingSub":
       return genMissingSub(level);
-    case "compareNum":
-      return genCompareNum(level);
-    case "compareExpr":
-      return genCompareExpr(level);
   }
 }
 
-/** 错题列表 / 正确答案展示用：填空题补上答案，比大小题写出大小关系 */
+/** 错题列表 / 正确答案展示用：填空题补上答案，选择题写出大小关系 */
 export function fillAnswer(q: MathQuestion): string {
   if (q.form === "compare") {
-    const big = q.bigger === "left" ? q.left : q.right;
-    const small = q.bigger === "left" ? q.right : q.left;
-    return `${big.label} > ${small.label}`;
+    return `${q.left.label} ${relationLabel(q.relation)} ${q.right.label}`;
   }
   return q.text.replace("?", String(q.answer));
 }
 
-/** 连答案一起读出来（填空 / 比大小都能用） */
+/** 连答案一起读出来（填空 / 选择题都能用） */
 export function speakFilled(q: MathQuestion): string {
   if (q.form === "compare") {
-    const big = q.bigger === "left" ? q.left : q.right;
-    return `${q.speakText}，${sayOperand(big)}大`;
+    return `${q.speakText}，${relationLabel(q.relation)}`;
   }
   if (q.kind === "missingAdd") {
     const sum = q.a + q.b;
@@ -450,7 +493,11 @@ export function speakFilled(q: MathQuestion): string {
   return `${q.speakText.replace("等于几", "")}等于${cnNum(q.answer)}`;
 }
 
-export function buildMathQuestions(levels: MathLevel[], size: number): MathQuestion[] {
+export function buildMathQuestions(
+  levels: MathLevel[],
+  size: number,
+  type: MathType = "fill"
+): MathQuestion[] {
   const active = shuffle(levels);
   if (active.length === 0) return [];
   const qs: MathQuestion[] = [];
@@ -459,7 +506,7 @@ export function buildMathQuestions(levels: MathLevel[], size: number): MathQuest
   while (qs.length < size && guard < size * 8 + 200) {
     guard += 1;
     const level = active[i % active.length];
-    const q = genMathQuestion(level);
+    const q = genMathQuestion(level, type);
     if (qs.length > 0 && qs[qs.length - 1].text === q.text) continue;
     qs.push(q);
     i += 1;
