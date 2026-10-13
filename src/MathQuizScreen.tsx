@@ -4,7 +4,7 @@ import { speakMathTokens } from "./lib/audio";
 import {
   MATH_RELATIONS,
   fillAnswer,
-  relationLabel,
+  relationSymbol,
   type MathQuestion,
   type MathOperand,
   type MathRelation,
@@ -155,7 +155,7 @@ export default function MathQuizScreen(props: {
                     : "compare-slot"
                 }
               >
-                {confirmed ? relationLabel(compare.relation) : "?"}
+                {confirmed ? relationSymbol(compare.relation) : "?"}
               </span>
               <span className={sideClass(compare.right)}>{compare.right.label}</span>
             </div>
@@ -173,8 +173,10 @@ export default function MathQuizScreen(props: {
                     className={cls}
                     disabled={confirmed}
                     onClick={() => pickRelation(rel.id)}
+                    aria-label={rel.label}
                   >
-                    {rel.label}
+                    <span className="compare-choice-symbol">{rel.symbol}</span>
+                    <span className="compare-choice-word">{rel.label}</span>
                   </button>
                 );
               })}

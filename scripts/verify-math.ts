@@ -16,6 +16,7 @@ import {
   fillAnswer,
   genMathQuestion,
   relationLabel,
+  relationSymbol,
   speakFilled,
   type MathQuestion,
   type MathRelation,
@@ -123,7 +124,7 @@ for (const def of MATH_LEVELS) {
       const missed = fillAnswer(q);
       const answerWord = q.form === "compare" ? relationLabel(q.relation) : "";
       if (q.form === "compare") {
-        if (!missed.includes(answerWord)) {
+        if (!missed.includes(relationSymbol(q.relation))) {
           problems.push(`${def.id} 比大小错题文案没写清大小关系：${missed}`);
         }
       } else if ((missed.match(/\?/g) ?? []).length > 0) {

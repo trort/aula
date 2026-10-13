@@ -50,7 +50,7 @@
 | `src/LiteracyRunner.tsx` | 识字作答界面：卡片（audio）、找茬（imposter）、迷雾寻字（import `ScratchCards`）；统一产出 `AnswerItem[]`。首页 chip 上的"传送带喂食"走的是下面 `FeedSentence` |
 | `src/FeedSentence.tsx` | **传送带喂食 / 气球连句**（独立 `Screen`，从 `src/data/sentences.ts` 组句，逐字记录进度）；气球挂在固定槽位上等距横移，池里保证有干扰气球 |
 | `src/FeedBelt.tsx` · `src/ScratchCards.tsx` | `ScratchCards` 是迷雾寻字；`FeedBelt`（拖拽喂食）是 v0.26 的旧实现，已没有入口，留着参考 |
-| `src/lib/mathgen.ts` | 数学**唯一**的题目来源：`MATH_LEVELS`（L1–L6 定义）、`MathType`（`fill` 填空 / `compare` 选择题）、`FILL_MIX`·`COMPARE_MIX`（每档问法配比）、`genMathQuestion(level, type)`、`buildMathQuestions(levels, size, type)`、`MATH_RELATIONS`（小于/等于/大于）、`cnNum`、`fillAnswer` |
+| `src/lib/mathgen.ts` | 数学**唯一**的题目来源：`MATH_LEVELS`（L1–L6 定义）、`MathType`（`fill` 填空 / `compare` 选择题）、`FILL_MIX`·`COMPARE_MIX`（每档问法配比）、`genMathQuestion(level, type)`、`buildMathQuestions(levels, size, type)`、`MATH_RELATIONS`（`<` `=` `>` 符号 + 中文词）、`cnNum`、`fillAnswer` |
 | `src/MathQuizScreen.tsx` | 数学作答界面：填空（数字键盘）/ 选择题比大小（`3 ? 4` + 小于/等于/大于 三选项）、答对 700ms 自动下一题、答错先亮答案；产出 `MathAnswerItem[]` |
 | `src/RewardFx.tsx` · `src/lib/sfx.ts` · `src/lib/rewards.ts` | 星星/贴纸/连击的奖励算法、音效与动画（`STICKERS`、`calcSessionReward`） |
 
@@ -128,8 +128,9 @@
 
 - **填空题（`fill`）**：算式挖一个空、数字键盘作答，`3 + 4 = ?` / `? + 4 = 7` / `3 + ? = 7`。
   `FILL_MIX` 决定每档里"普通填空 : 换个位置挖空"的比例。
-- **选择题（`compare`，比大小）**：左边数 `?` 右边数，选**小于 / 等于 / 大于**，
-  形如 `3 ? 4` 或 `3 + 4 ? 2 + 5`。`COMPARE_MIX` 决定每档里"数字比大小 : 算式比大小"的比例。
+- **选择题（`compare`，比大小）**：左边数 `?` 右边数，选数学符号 **`<` / `=` / `>`**
+  （按钮下面有小字"小于 / 等于 / 大于"，答完问号位显示符号），形如 `3 ? 4` 或 `3 + 4 ? 2 + 5`。
+  `COMPARE_MIX` 决定每档里"数字比大小 : 算式比大小"的比例。
   约 1/4 的题两边**一样大**（"等于"必须是正确答案之一），答案分布约 小于 36% / 等于 25% / 大于 36%。
 
 两种题型的掌握进度都记在所属档位（L1–L6）上，不新增档位、不动存档结构。
@@ -177,7 +178,7 @@
 
 - 单字/整词优先 `public/audio/*.mp3`（晓晓神经语音），缺失才回退 Web TTS；数学是"数字/运算符片段拼接"（`speakTokens` + `public/audio/math/`）。
   选择题（比大小）念"三 和 四 谁 大"，用到 `and` / `who` / `big` 三段（目前缺文件 → 整句回退系统 TTS，补上文件即自动生效）；
-  三个选项（小于/等于/大于）是**看的**，不朗读。
+  三个选项是**看的**（大号 `<` `=` `>`，小字中文），不朗读。
 - **靠听音出题的玩法，选项里不能有与目标字同音的字**（不计声调）。`src/lib/decoys.ts` 会自动跳过，
   但手工数据（`curated.ts`）里允许保留同音形近字——它们只服务纯视觉的"找茬"。
 

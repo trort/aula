@@ -45,14 +45,23 @@ export type MathType = "fill" | "compare";
 /** 比大小的答案：左边小于 / 等于 / 大于右边 */
 export type MathRelation = "lt" | "eq" | "gt";
 
-export const MATH_RELATIONS: Array<{ id: MathRelation; label: string }> = [
-  { id: "lt", label: "小于" },
-  { id: "eq", label: "等于" },
-  { id: "gt", label: "大于" },
+/** 三个选项：数学符号为主，中文小字给家长/朗读用 */
+export const MATH_RELATIONS: Array<{
+  id: MathRelation;
+  symbol: string;
+  label: string;
+}> = [
+  { id: "lt", symbol: "<", label: "小于" },
+  { id: "eq", symbol: "=", label: "等于" },
+  { id: "gt", symbol: ">", label: "大于" },
 ];
 
 export function relationLabel(relation: MathRelation): string {
   return MATH_RELATIONS.find((r) => r.id === relation)?.label ?? "";
+}
+
+export function relationSymbol(relation: MathRelation): string {
+  return MATH_RELATIONS.find((r) => r.id === relation)?.symbol ?? "";
 }
 
 /** 比大小的一边：label 给孩子看（"3" 或 "3 + 4"），value 用来判对错 */
@@ -468,7 +477,7 @@ export function genMathQuestion(level: MathLevel, type: MathType = "fill"): Math
 /** 错题列表 / 正确答案展示用：填空题补上答案，选择题写出大小关系 */
 export function fillAnswer(q: MathQuestion): string {
   if (q.form === "compare") {
-    return `${q.left.label} ${relationLabel(q.relation)} ${q.right.label}`;
+    return `${q.left.label} ${relationSymbol(q.relation)} ${q.right.label}`;
   }
   return q.text.replace("?", String(q.answer));
 }
